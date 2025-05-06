@@ -10,7 +10,8 @@ namespace Polygonizer
     public partial class MainWindow : Window
     {
         const int CellSize = 5;
-
+        double testY = 170;
+        double testX = 530;
         public MainWindow()
         {
             InitializeComponent();
@@ -68,8 +69,7 @@ namespace Polygonizer
             var regions = TraceFilledRegions(grid);
 
             // Convert point to grid coordinate
-            double testY = 180;
-            double testX = 260;
+
             int cy = (int)((testY - bounds.Y) / CellSize);
             int cx = (int)((testX - bounds.X) / CellSize);
 
