@@ -21,12 +21,12 @@ namespace Polygonizer
         private void DrawScene()
         {
             var rectangles = new List<Rect>
-            {
-                new Rect(100, 100, 200, 150),
-                new Rect(250, 200, 200, 150),
-                new Rect(500, 100, 100, 80),
-                new Rect(520, 130, 50, 50)
-            };
+    {
+        new Rect(100, 100, 200, 150),
+        new Rect(250, 200, 200, 150),
+        new Rect(500, 100, 100, 80),
+        new Rect(520, 130, 50, 50)
+    };
 
             // Compute bounds
             Rect bounds = Rect.Empty;
@@ -49,27 +49,10 @@ namespace Polygonizer
                         grid[y, x] = true;
             }
 
-            // Draw filled rectangles (for visual reference)
-            foreach (var rect in rectangles)
-            {
-                var rectShape = new Rectangle
-                {
-                    Width = rect.Width,
-                    Height = rect.Height,
-                    Fill = Brushes.LightBlue,
-                    Stroke = Brushes.Black,
-                    StrokeThickness = 2
-                };
-                Canvas.SetLeft(rectShape, rect.X);
-                Canvas.SetTop(rectShape, rect.Y);
-                MainCanvas.Children.Add(rectShape);
-            }
-
             // Trace filled regions
             var regions = TraceFilledRegions(grid);
 
             // Convert point to grid coordinate
-
             int cy = (int)((testY - bounds.Y) / CellSize);
             int cx = (int)((testX - bounds.X) / CellSize);
 
@@ -90,17 +73,6 @@ namespace Polygonizer
                 return;
             }
 
-            // Draw perimeter of the region
-            var polygon = TracePerimeter(grid, region, bounds);
-            var polyShape = new Polygon
-            {
-                Stroke = Brushes.Red,
-                StrokeThickness = 3,
-                Fill = Brushes.Transparent,
-                Points = new PointCollection(polygon)
-            };
-            MainCanvas.Children.Add(polyShape);
-
             // Compute bounds in region for measurement
             double hMin = double.MaxValue, hMax = double.MinValue;
             double vMin = double.MaxValue, vMax = double.MinValue;
@@ -119,6 +91,20 @@ namespace Polygonizer
                     vMin = Math.Min(vMin, yCanvas);
                     vMax = Math.Max(vMax, yCanvas);
                 }
+            }
+
+            // Draw filled rectangles (bottom layer)
+            foreach (var rect in rectangles)
+            {
+                var rectShape = new Rectangle
+                {
+                    Width = rect.Width,
+                    Height = rect.Height,
+                    Fill = Brushes.LightBlue
+                };
+                Canvas.SetLeft(rectShape, rect.X);
+                Canvas.SetTop(rectShape, rect.Y);
+                MainCanvas.Children.Add(rectShape);
             }
 
             // Draw horizontal measurement line
@@ -153,10 +139,38 @@ namespace Polygonizer
                 MainCanvas.Children.Add(vLine);
             }
 
+            // Draw boundary polygon (on top)
+            var polygon = TracePerimeter(grid, region, bounds);
+            var polyShape = new Polygon
+            {
+                Stroke = Brushes.Red,
+                StrokeThickness = 3,
+                Fill = Brushes.Transparent,
+                Points = new PointCollection(polygon)
+            };
+            MainCanvas.Children.Add(polyShape);
+
+            // Draw rectangle borders (on top)
+            foreach (var rect in rectangles)
+            {
+                var rectBorder = new Rectangle
+                {
+                    Width = rect.Width,
+                    Height = rect.Height,
+                    Stroke = Brushes.Black,
+                    StrokeThickness = 2,
+                    Fill = Brushes.Transparent
+                };
+                Canvas.SetLeft(rectBorder, rect.X);
+                Canvas.SetTop(rectBorder, rect.Y);
+                MainCanvas.Children.Add(rectBorder);
+            }
+
             double width = hMax - hMin + CellSize;
             double height = vMax - vMin + CellSize;
             Title = $"Width at Y={testY}: {width}px, Height at X={testX}: {height}px";
         }
+
 
         private List<HashSet<(int, int)>> TraceFilledRegions(bool[,] grid)
         {
