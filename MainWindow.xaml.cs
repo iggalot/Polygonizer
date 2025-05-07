@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Ink;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -10,14 +10,22 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
+        int testPtX = 260;
+        int testPtY = 300;
+
         const bool DEBUG_ON = false;
         const int CellSize = 2;
         const int ExtraPadding = 0;
 
         List<(double x, double y)> allCornerPoints = new List<(double x, double y)>();
-
         List<(double x, double y)> externalCornerPoints = new List<(double x, double y)>();
         List<(double x, double y)> internalCornerPoints = new List<(double x, double y)>();
+
+        // Define the Islands for our rectagles -- where Islands are independent groupings of overlapping rectangles.
+        List<List<Rect>> Islands = new List<List<Rect>>();
+        private List<Geometry> IslandGeometries = new List<Geometry>();
+
+
 
         /// <summary>
         /// Define our rectangles
@@ -26,10 +34,12 @@ namespace Polygonizer
         {
             new Rect(10, 180, 100, 100),
 
-            new Rect(410, 410, 100, 100),
             new Rect(120, 120, 200, 150),
             new Rect(250, 200, 200, 150),
             new Rect(150, 300, 200, 150),
+
+            new Rect(410, 410, 100, 100),
+
 
             new Rect(500, 100, 100, 80),  // this is the isolated rectangle
             new Rect(540, 140, 100, 80),  // this is the isolated rectangle
@@ -40,6 +50,157 @@ namespace Polygonizer
         {
             InitializeComponent();
             DrawScene();
+
+            Point testPoint = new Point(testPtX, testPtY);
+            Geometry found = FindContainingGeometry(IslandGeometries, testPoint);
+
+
+            if (found is PathGeometry pathGeometry)
+            {
+                var (left, right) = FindNearestVerticalEdgeDistances(pathGeometry, testPoint);
+                Console.WriteLine($"Left: {left}, Right: {right}");
+
+                // draw a line from the test point to the left edge
+                var leftLine = new Line
+                {
+                    X1 = testPtX,
+                    Y1 = testPtY,
+                    X2 = testPtX - (left ?? 0),
+                    Y2 = testPtY,
+                    Stroke = Brushes.Red,
+                    StrokeThickness = 2
+                };
+                MainCanvas.Children.Add(leftLine);
+
+                // draw a line from the test point to the right edge
+                var rightLine = new Line
+                {
+                    X1 = testPtX,
+                    Y1 = testPtY,
+                    X2 = testPtX + (right ?? 0),
+                    Y2 = testPtY,
+                    Stroke = Brushes.Red,
+                    StrokeThickness = 2
+                };
+                MainCanvas.Children.Add(rightLine);
+            }
+            else
+            {
+                Console.WriteLine("Geometry is not a PathGeometry.");
+            }
+
+
+
+            // draw the test point marker
+            var circle = new Ellipse
+            {
+                Width = 10,
+                Height = 10,
+                Fill = Brushes.Black
+            };
+            Canvas.SetLeft(circle, testPtX - 5);
+            Canvas.SetTop(circle, testPtY - 5);
+            MainCanvas.Children.Add(circle);
+        }
+
+        public static (double? left, double? right) FindNearestVerticalEdgeDistances(Geometry geometry, Point testPoint)
+        {
+            var pathGeometry = geometry.GetFlattenedPathGeometry(); // Ensures it's a proper PathGeometry
+            double? nearestLeft = null;
+            double? nearestRight = null;
+
+            foreach (var figure in pathGeometry.Figures)
+            {
+                Point start = figure.StartPoint;
+
+                foreach (var segment in figure.Segments)
+                {
+                    // Check if the segment is a PolylineSegment
+                    if (segment is PolyLineSegment polylineSegment)
+                    {
+                        for (int i = 0; i < polylineSegment.Points.Count - 1; i++)
+                        {
+                            Point segmentStart = polylineSegment.Points[i];
+                            Point segmentEnd = polylineSegment.Points[i + 1];
+
+                            // Check if the polyline segment is vertical
+                            if (Math.Abs(segmentStart.X - segmentEnd.X) < 0.01)
+                            {
+                                double x = segmentStart.X;
+
+                                // Ensure Y range contains the test point Y
+                                double minY = Math.Min(segmentStart.Y, segmentEnd.Y);
+                                double maxY = Math.Max(segmentStart.Y, segmentEnd.Y);
+                                if (testPoint.Y >= minY && testPoint.Y <= maxY)
+                                {
+                                    if (x < testPoint.X)
+                                    {
+                                        double dist = testPoint.X - x;
+                                        if (nearestLeft == null || dist < nearestLeft)
+                                            nearestLeft = dist;
+                                    }
+                                    else if (x > testPoint.X)
+                                    {
+                                        double dist = x - testPoint.X;
+                                        if (nearestRight == null || dist < nearestRight)
+                                            nearestRight = dist;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Add more checks here for other segment types (e.g., BezierSegment) if needed
+                    else if (segment is LineSegment lineSegment)
+                    {
+                        Point end = lineSegment.Point;
+
+                        // Check if the segment is vertical
+                        if (Math.Abs(start.X - end.X) < 0.01)
+                        {
+                            double x = start.X;
+
+                            // Ensure Y range contains the test point Y
+                            double minY = Math.Min(start.Y, end.Y);
+                            double maxY = Math.Max(start.Y, end.Y);
+                            if (testPoint.Y >= minY && testPoint.Y <= maxY)
+                            {
+                                if (x < testPoint.X)
+                                {
+                                    double dist = testPoint.X - x;
+                                    if (nearestLeft == null || dist < nearestLeft)
+                                        nearestLeft = dist;
+                                }
+                                else if (x > testPoint.X)
+                                {
+                                    double dist = x - testPoint.X;
+                                    if (nearestRight == null || dist < nearestRight)
+                                        nearestRight = dist;
+                                }
+                            }
+                        }
+                    }
+
+                    start = segment is LineSegment line ? line.Point : start; // Update the start point for the next segment
+                }
+            }
+
+            return (nearestLeft, nearestRight);
+        }
+        /// <summary>
+        /// Checks if the given point is inside any of the provided geometries.
+        /// Returns the first geometry that contains the point, or null if none do.
+        /// </summary>
+        public static Geometry FindContainingGeometry(List<Geometry> geometries, Point testPoint, double tolerance = 0.5)
+        {
+            foreach (var geometry in geometries)
+            {
+                if (geometry.FillContains(testPoint, tolerance, ToleranceType.Absolute))
+                {
+                    return geometry;
+                }
+            }
+
+            return null;
         }
 
         private void DrawScene()
@@ -237,8 +398,8 @@ namespace Polygonizer
             if (rectangles == null || rectangles.Count == 0)
                 return;
 
-            // Step 1: Group rectangles into connected islands
-            List<List<Rect>> islands = GroupConnectedRectangles(rectangles);
+            // Step 1: Group rectangles into connected Islands
+            Islands = GroupConnectedRectangles(rectangles);
 
             // Step 2: Color palette
             Brush[] colorPalette = new Brush[]
@@ -249,14 +410,16 @@ namespace Polygonizer
             };
 
             // Step 3: Process each island
-            for (int i = 0; i < islands.Count; i++)
+            for (int i = 0; i < Islands.Count; i++)
             {
-                var island = islands[i];
+                var island = Islands[i];
                 Geometry combined = new RectangleGeometry(island[0]);
                 for (int j = 1; j < island.Count; j++)
                 {
                     combined = Geometry.Combine(combined, new RectangleGeometry(island[j]), GeometryCombineMode.Union, null);
                 }
+
+                IslandGeometries.Add(combined);
 
                 Path path = new Path
                 {
@@ -272,7 +435,7 @@ namespace Polygonizer
 
         private List<List<Rect>> GroupConnectedRectangles(List<Rect> rectangles)
         {
-            List<List<Rect>> groups = new List<List<Rect>>();
+            List<List<Rect>> islandGroups = new List<List<Rect>>();
             HashSet<int> visited = new HashSet<int>();
 
             for (int i = 0; i < rectangles.Count; i++)
@@ -299,10 +462,10 @@ namespace Polygonizer
                     }
                 }
 
-                groups.Add(group);
+                islandGroups.Add(group);
             }
 
-            return groups;
+            return islandGroups;
         }
 
         private bool RectsTouchOrOverlap(Rect a, Rect b)
@@ -315,5 +478,343 @@ namespace Polygonizer
             DrawUnionOutlineWithColors(rectangles);
 
         }
+
+        /// <summary>
+        /// Returns an index for the island group that contains the point(px,py);
+        /// </summary>
+        /// <param name="px"></param>
+        /// <param name="py"></param>
+        /// <returns></returns>
+        private int GetIslandIndexContainingPoint(double px, double py)
+        {
+            for (int i = 0; i < Islands.Count; i++)
+            {
+                foreach (var rect in Islands[i])
+                {
+                    if (rect.Contains(px, py))
+                    {
+                        return i; // Found the island
+                    }
+                }
+            }
+
+            return -1; // Not found
+        }
+
+        /// <summary>
+        /// Returns a list of Rect for the island that contains the point(px,py);
+        /// </summary>
+        /// <param name="px"></param>
+        /// <param name="py"></param>
+        /// <returns></returns>
+        private List<Rect> GetIslandContainingPoint(double px, double py)
+        {
+            foreach (var island in Islands)
+            {
+                foreach (var rect in island)
+                {
+                    if (rect.Contains(px, py))
+                    {
+                        return island; // Found the island
+                    }
+                }
+            }
+
+            return null; // No island contains the point
+        }
+
+        /// <summary>
+        /// Returns the index of the island geometry that contains the given point.
+        /// </summary>
+        private int GetIslandGeometryIndexContainingPoint(double px, double py)
+        {
+            Point point = new Point(px, py);
+            for (int i = 0; i < IslandGeometries.Count; i++)
+            {
+                if (IslandGeometries[i].FillContains(point))
+                {
+                    return i;
+                }
+            }
+            return -1; // No island contains the point
+        }
+
+        private List<Rect> GetIslandRectsContainingPoint(double px, double py)
+        {
+            int index = GetIslandGeometryIndexContainingPoint(px, py);
+            if (index >= 0 && index < Islands.Count)
+                return Islands[index];
+            return null;
+        }
+
+        private Rect? GetIslandBoundsContainingPoint(double px, double py)
+        {
+            int index = GetIslandGeometryIndexContainingPoint(px, py);
+            if (index >= 0 && index < IslandGeometries.Count)
+                return IslandGeometries[index].Bounds;
+            return null;
+        }
+
+        /// <summary>
+        /// Returns the actual width and height of the island border at the given point,
+        /// based on the outermost coordinates of the PathGeometry.
+        /// </summary>
+        private (double width, double height)? GetIslandGeometrySizeAtPoint(double px, double py)
+        {
+            Point point = new Point(px, py);
+
+            // Iterate over each island geometry
+            for (int i = 0; i < IslandGeometries.Count; i++)
+            {
+                // Get the current island's geometry
+                Geometry geometry = IslandGeometries[i];
+
+                // Check if the point is inside the current geometry
+                if (geometry.FillContains(point))
+                {
+                    // If the point is inside the geometry, calculate its bounds
+                    PathGeometry pathGeometry = geometry.GetOutlinedPathGeometry();
+
+                    double minX = double.MaxValue;
+                    double maxX = double.MinValue;
+                    double minY = double.MaxValue;
+                    double maxY = double.MinValue;
+
+                    // Iterate over each figure in the path geometry
+                    foreach (PathFigure figure in pathGeometry.Figures)
+                    {
+                        // Update bounds for the starting point of the figure
+                        UpdateBounds(figure.StartPoint, ref minX, ref maxX, ref minY, ref maxY);
+
+                        // Iterate over each segment of the figure and update bounds
+                        foreach (PathSegment segment in figure.Segments)
+                        {
+                            if (segment is PolyLineSegment poly)
+                            {
+                                foreach (Point p in poly.Points)
+                                    UpdateBounds(p, ref minX, ref maxX, ref minY, ref maxY);
+                            }
+                            else if (segment is LineSegment line)
+                            {
+                                UpdateBounds(line.Point, ref minX, ref maxX, ref minY, ref maxY);
+                            }
+                        }
+                    }
+
+                    // The width and height are the differences between the min and max coordinates
+                    double width = maxX - minX;
+                    double height = maxY - minY;
+
+                    return (width, height);
+                }
+            }
+
+            // If no island contains the point, return null
+            return null;
+        }
+
+        /// <summary>
+        /// Updates the bounding extents from a point.
+        /// </summary>
+        private void UpdateBounds(Point p, ref double minX, ref double maxX, ref double minY, ref double maxY)
+        {
+            if (p.X < minX) minX = p.X;
+            if (p.X > maxX) maxX = p.X;
+            if (p.Y < minY) minY = p.Y;
+            if (p.Y > maxY) maxY = p.Y;
+        }
+
+        private void DrawMeasurementLineAtPoint(double px, double py)
+        {
+            var size = GetIslandGeometrySizeAtPoint(px, py);
+
+            if (size.HasValue)
+            {
+                double width = size.Value.width;
+                double height = size.Value.height;
+
+                // Assuming the selected geometry's bounds are already known
+                // You can calculate where to draw the line (we'll use the min/max points from the extents)
+                Point startPoint = new Point(px, py); // Start point of measurement
+                Point endPoint = new Point(px + width, py); // For width
+
+                // Create the line (for width in this case)
+                Line line = new Line
+                {
+                    X1 = startPoint.X,
+                    Y1 = startPoint.Y,
+                    X2 = endPoint.X,
+                    Y2 = endPoint.Y,
+                    Stroke = Brushes.Red, // Line color (Red for visibility)
+                    StrokeThickness = 2
+                };
+
+                // Add the line to the canvas
+                MainCanvas.Children.Add(line);
+
+                // Optionally, show the height as a vertical line
+                startPoint = new Point(px, py); // Reset to initial point
+                endPoint = new Point(px, py + height); // For height
+
+                // Create the vertical line (for height)
+                Line verticalLine = new Line
+                {
+                    X1 = startPoint.X,
+                    Y1 = startPoint.Y,
+                    X2 = endPoint.X,
+                    Y2 = endPoint.Y,
+                    Stroke = Brushes.Blue, // Line color (Blue for height)
+                    StrokeThickness = 2
+                };
+
+                // Add the vertical line to the canvas
+                MainCanvas.Children.Add(verticalLine);
+            }
+            else
+            {
+                MessageBox.Show("No geometry found at this point.");
+            }
+        }
+
+        /// <summary>
+        /// Determines the number of pixels between the island's boundary polygon in the horizontal and vertical directions, passing through point (px, py).
+        /// </summary>
+        private (double horizontalDistance, double verticalDistance)? GetDistanceToIslandBoundary(double px, double py)
+        {
+            Point point = new Point(px, py);
+
+            // Step 1: Iterate through the island geometries
+            for (int i = 0; i < IslandGeometries.Count; i++)
+            {
+                var geometry = IslandGeometries[i];
+
+                // Check if the point is inside the island geometry
+                if (geometry.FillContains(point))
+                {
+                    // Step 2: Get the outlined path geometry
+                    PathGeometry pathGeometry = geometry.GetOutlinedPathGeometry();
+
+                    // Initialize variables to store the minimum horizontal and vertical distances
+                    double minHorizontalDistance = double.MaxValue;
+                    double minVerticalDistance = double.MaxValue;
+
+                    // Step 3: Iterate through the segments of the path geometry to calculate distances
+                    foreach (PathFigure figure in pathGeometry.Figures)
+                    {
+                        // Check distances to each segment
+                        foreach (PathSegment segment in figure.Segments)
+                        {
+                            if (segment is LineSegment lineSegment)
+                            {
+                                // For horizontal distance, compare the X-coordinate of the point with the line's X-coordinate range
+                                minHorizontalDistance = Math.Min(minHorizontalDistance, GetDistanceToHorizontalSegment(lineSegment, point));
+
+                                // For vertical distance, compare the Y-coordinate of the point with the line's Y-coordinate range
+                                minVerticalDistance = Math.Min(minVerticalDistance, GetDistanceToVerticalSegment(lineSegment, point));
+                            }
+                            // You can extend for other types of segments like PolyLineSegment if needed
+                        }
+                    }
+
+                    return (minHorizontalDistance, minVerticalDistance);
+                }
+            }
+
+            return null; // If no island geometry contains the point
+        }
+
+        /// <summary>
+        /// Calculates the horizontal distance between the point and the closest point on the given horizontal line segment.
+        /// </summary>
+        private double GetDistanceToHorizontalSegment(LineSegment lineSegment, Point point)
+        {
+            // Check if the line is horizontal
+            if (lineSegment.Point.Y == point.Y)
+            {
+                // Distance is the horizontal distance (X-difference)
+                return Math.Abs(lineSegment.Point.X - point.X);
+            }
+
+            return double.MaxValue; // Return a large value if the line is not horizontal
+        }
+
+        /// <summary>
+        /// Calculates the vertical distance between the point and the closest point on the given vertical line segment.
+        /// </summary>
+        private double GetDistanceToVerticalSegment(LineSegment lineSegment, Point point)
+        {
+            // Check if the line is vertical
+            if (lineSegment.Point.X == point.X)
+            {
+                // Distance is the vertical distance (Y-difference)
+                return Math.Abs(lineSegment.Point.Y - point.Y);
+            }
+
+            return double.MaxValue; // Return a large value if the line is not vertical
+        }
+
+        private (double leftDistance, double rightDistance)? GetDistanceToVerticalEdges(double px, double py)
+        {
+            Point testPoint = new Point(px, py);
+
+            foreach (var geometry in IslandGeometries)
+            {
+                // Use more precise point-in-geometry test
+                if (!geometry.FillContains(testPoint, 0.5, ToleranceType.Absolute))
+                    continue;
+
+                // Geometry found — now check vertical edges
+                PathGeometry pathGeometry = geometry.GetOutlinedPathGeometry();
+
+                double? nearestLeftEdge = null;
+                double? nearestRightEdge = null;
+
+                foreach (var figure in pathGeometry.Figures)
+                {
+                    Point previousPoint = figure.StartPoint;
+
+                    foreach (var segment in figure.Segments)
+                    {
+                        if (segment is LineSegment lineSegment)
+                        {
+                            Point currentPoint = lineSegment.Point;
+
+                            // Check vertical edge
+                            if (Math.Abs(previousPoint.X - currentPoint.X) < 0.1)
+                            {
+                                double x = previousPoint.X;
+
+                                if (x < px)
+                                {
+                                    if (!nearestLeftEdge.HasValue || x > nearestLeftEdge.Value)
+                                        nearestLeftEdge = x;
+                                }
+                                else if (x > px)
+                                {
+                                    if (!nearestRightEdge.HasValue || x < nearestRightEdge.Value)
+                                        nearestRightEdge = x;
+                                }
+                            }
+
+                            previousPoint = currentPoint;
+                        }
+                    }
+                }
+
+                if (nearestLeftEdge.HasValue && nearestRightEdge.HasValue)
+                {
+                    return (px - nearestLeftEdge.Value, nearestRightEdge.Value - px);
+                }
+
+                // If we got here, the point was inside, but vertical edges weren't found
+                return null;
+            }
+
+            // No geometry contained the point
+            return null;
+        }
+
+
+
     }
 }
