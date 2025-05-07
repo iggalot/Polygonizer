@@ -11,9 +11,9 @@ namespace Polygonizer
     public partial class MainWindow : Window
     {
         int testPtX = 400;
-        int testPtY = 475;
+        int testPtY = 300;
 
-        const bool DEBUG_ON = false;
+        const bool DEBUG_ON = true;
         const int CellSize = 2;
         const int ExtraPadding = 0;
 
@@ -39,8 +39,7 @@ namespace Polygonizer
             new Rect(400, 300, 200, 200),
 
             new Rect(150, 300, 200, 150),
-
-            new Rect(410, 410, 100, 100),
+            new Rect(410, 480, 100, 100),
 
 
             new Rect(500, 100, 100, 80),  // this is the isolated rectangle
