@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Controls;
+using System.Linq;
 
 namespace Polygonizer
 {
@@ -40,7 +41,7 @@ namespace Polygonizer
             bool[,] grid = new bool[rows, cols];
             bool[,] visited = new bool[rows, cols];
 
-            // Fill grid
+            // Fill grid with rectangles
             foreach (var rect in rectangles)
             {
                 int x0 = (int)((rect.X - bounds.X) / CellSize);
@@ -80,6 +81,8 @@ namespace Polygonizer
                     }
                 }
             }
+
+            DrawIslandBoundaries();
         }
 
         private void FloodFill(bool[,] grid, bool[,] visited, int x, int y, List<(int x, int y)> region)
@@ -237,6 +240,49 @@ namespace Polygonizer
                     MainCanvas.Children.Add(cornerCircle);
                 }
             }
+
+            // Start tracing from one of the corner points
+            if (externalCornerPoints.Count > 0)
+            {
+                TraceRectangleBoundary(externalCornerPoints[0], grid, bounds);
+            }
+        }
+
+        private void TraceRectangleBoundary((double x, double y) startCorner, bool[,] grid, Rect bounds)
+        {
+            var current = startCorner;
+            var boundaryPoints = new List<Point>();
+
+            // March around the boundary until we close the loop
+            do
+            {
+                boundaryPoints.Add(new Point(bounds.X + current.x * CellSize, bounds.Y + current.y * CellSize));
+
+                // Check the 4 adjacent directions (right, down, left, up)
+                var next = GetNextBoundaryPoint(current, grid);
+                current = next;
+
+            } while (current != startCorner);
+
+            // Optionally, visualize the boundary
+            foreach (var pt in boundaryPoints)
+            {
+                var pointEllipse = new Ellipse
+                {
+                    Width = 5,
+                    Height = 5,
+                    Fill = Brushes.Black
+                };
+                Canvas.SetLeft(pointEllipse, pt.X - 2.5);
+                Canvas.SetTop(pointEllipse, pt.Y - 2.5);
+                MainCanvas.Children.Add(pointEllipse);
+            }
+        }
+
+        private (double x, double y) GetNextBoundaryPoint((double x, double y) current, bool[,] grid)
+        {
+            // Implement logic to find the next boundary point here
+            return current; // Placeholder to be filled with boundary logic
         }
 
         private bool GetSafe(bool[,] grid, int x, int y)
@@ -259,5 +305,161 @@ namespace Polygonizer
 
             return result;
         }
+
+        private void DrawIslandBoundaries()
+        {
+            var rects = MainCanvas.Children.OfType<Rectangle>().ToList();
+            var visited = new HashSet<Rectangle>();
+            var islands = new List<List<Rect>>();
+
+            foreach (var rect in rects)
+            {
+                if (visited.Contains(rect)) continue;
+
+                var queue = new Queue<Rectangle>();
+                var island = new List<Rect>();
+                queue.Enqueue(rect);
+                visited.Add(rect);
+
+                while (queue.Count > 0)
+                {
+                    var current = queue.Dequeue();
+                    var r = new Rect(Canvas.GetLeft(current), Canvas.GetTop(current), current.Width, current.Height);
+                    island.Add(r);
+
+                    foreach (var neighbor in rects)
+                    {
+                        if (visited.Contains(neighbor)) continue;
+
+                        var nr = new Rect(Canvas.GetLeft(neighbor), Canvas.GetTop(neighbor), neighbor.Width, neighbor.Height);
+                        if (r.IntersectsWith(nr) || RectsTouch(r, nr))
+                        {
+                            queue.Enqueue(neighbor);
+                            visited.Add(neighbor);
+                        }
+                    }
+                }
+
+                islands.Add(island);
+            }
+
+            foreach (var island in islands)
+            {
+                var polygon = TraceIslandBoundary(island);
+                if (polygon != null)
+                {
+                    polygon.Stroke = Brushes.Red;
+                    polygon.StrokeThickness = 2;
+                    polygon.Fill = Brushes.Transparent;
+                    MainCanvas.Children.Add(polygon);
+                }
+            }
+        }
+
+        private Polygon TraceIslandBoundary(List<Rect> rects)
+        {
+            var edgeMap = new Dictionary<(Point, Point), int>(new EdgeComparer());
+
+            foreach (var r in rects)
+            {
+                var edges = new[]
+                {
+            (new Point(r.Left, r.Top), new Point(r.Right, r.Top)),     // top
+            (new Point(r.Right, r.Top), new Point(r.Right, r.Bottom)), // right
+            (new Point(r.Right, r.Bottom), new Point(r.Left, r.Bottom)), // bottom
+            (new Point(r.Left, r.Bottom), new Point(r.Left, r.Top))    // left
+        };
+
+                foreach (var edge in edges)
+                {
+                    var normalized = NormalizeEdge(edge.Item1, edge.Item2);
+                    if (!edgeMap.ContainsKey(normalized))
+                        edgeMap[normalized] = 1;
+                    else
+                        edgeMap[normalized]++;
+                }
+            }
+
+            // Only edges with a count of 1 are boundary edges
+            var outerEdges = edgeMap.Where(e => e.Value == 1).Select(e => e.Key).ToList();
+            if (outerEdges.Count == 0) return null;
+
+            // Chain edges into a polygon
+            var boundaryPoints = ChainBoundaryEdges(outerEdges);
+            if (boundaryPoints.Count < 3) return null;
+
+            var poly = new Polygon
+            {
+                Stroke = Brushes.Red,
+                StrokeThickness = 2,
+                Fill = Brushes.Transparent
+            };
+            foreach (var pt in boundaryPoints)
+                poly.Points.Add(pt);
+
+            return poly;
+        }
+
+        private List<Point> ChainBoundaryEdges(List<(Point, Point)> edges)
+        {
+            var lookup = new Dictionary<Point, List<Point>>();
+
+            foreach (var (a, b) in edges)
+            {
+                if (!lookup.ContainsKey(a)) lookup[a] = new List<Point>();
+                if (!lookup.ContainsKey(b)) lookup[b] = new List<Point>();
+                lookup[a].Add(b);
+                lookup[b].Add(a);
+            }
+
+            var start = edges[0].Item1;
+            var current = start;
+            var previous = new Point(double.NaN, double.NaN);
+            var result = new List<Point> { current };
+
+            while (true)
+            {
+                var neighbors = lookup[current];
+                Point next = neighbors.FirstOrDefault(p => !p.Equals(previous));
+                if (next == start || next == default) break;
+
+                result.Add(next);
+                previous = current;
+                current = next;
+            }
+
+            return result;
+        }
+
+        private (Point, Point) NormalizeEdge(Point a, Point b)
+        {
+            return a.X < b.X || a.Y < b.Y ? (a, b) : (b, a);
+        }
+
+        private bool RectsTouch(Rect a, Rect b)
+        {
+            return (a.Right == b.Left || a.Left == b.Right) && a.Bottom > b.Top && a.Top < b.Bottom
+                || (a.Bottom == b.Top || a.Top == b.Bottom) && a.Right > b.Left && a.Left < b.Right;
+        }
+
+        private class EdgeComparer : IEqualityComparer<(Point, Point)>
+        {
+            public bool Equals((Point, Point) e1, (Point, Point) e2)
+            {
+                return (e1.Item1 == e2.Item1 && e1.Item2 == e2.Item2) ||
+                       (e1.Item1 == e2.Item2 && e1.Item2 == e2.Item1);
+            }
+
+            public int GetHashCode((Point, Point) edge)
+            {
+                unchecked
+                {
+                    int h1 = edge.Item1.GetHashCode();
+                    int h2 = edge.Item2.GetHashCode();
+                    return h1 ^ h2;
+                }
+            }
+        }
+
     }
 }
