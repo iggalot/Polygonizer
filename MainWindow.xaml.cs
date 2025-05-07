@@ -153,7 +153,7 @@ namespace Polygonizer
                     allCornerPoints.Add((x + 1, y + 1));
                     externalCornerPoints.Add((x + 1, y + 1));
                 }
-                if (!hasLeft && !hasBottom && hasRight && hasTop && bottomLeftEmpty && externalCornerPoints.Count < 4)
+                if (!hasLeft && !hasBottom && hasRight && hasTop && bottomLeftEmpty)
                 {
                     allCornerPoints.Add((x - 1, y + 1));
                     externalCornerPoints.Add((x - 1, y + 1));
