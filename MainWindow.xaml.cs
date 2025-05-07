@@ -39,7 +39,7 @@ namespace Polygonizer
             bool[,] grid = new bool[rows, cols];
             bool[,] visited = new bool[rows, cols];
 
-            // Fill grid
+            // Fill grid with rectangle cells
             foreach (var rect in rectangles)
             {
                 int x0 = (int)((rect.X - bounds.X) / CellSize);
@@ -66,7 +66,7 @@ namespace Polygonizer
                 MainCanvas.Children.Add(fill);
             }
 
-            // Flood fill to find all distinct regions
+            // Flood fill to find all distinct regions and trace their perimeters
             for (int y = 0; y < rows; y++)
             {
                 for (int x = 0; x < cols; x++)
@@ -131,64 +131,51 @@ namespace Polygonizer
 
         private List<Point> TracePerimeter(List<(int x, int y)> region, bool[,] grid, Rect bounds)
         {
-            var hash = new HashSet<(int, int)>(region);
-            var points = new List<Point>();
-            var dirs = new (int dx, int dy)[] { (1, 0), (0, 1), (-1, 0), (0, -1) };
+            var boundaryPoints = new List<Point>();
+            var dirs = new (int dx, int dy)[] { (1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1) };
 
-            var start = region.Find(cell => IsEdge(grid, cell.x, cell.y));
-            int x = start.x, y = start.y, dir = 0;
-            var startState = (x, y, dir);
-            bool first = true;
-
-            Point ToPoint(int gx, int gy) => new Point(bounds.X + gx * CellSize, bounds.Y + gy * CellSize);
-
-            while (first || (x, y, dir) != startState)
+            // Find the boundary points
+            foreach (var (x, y) in region)
             {
-                first = false;
-                points.Add(ToPoint(x, y));
-
-                int leftDir = (dir + 3) % 4;
-                int lx = x + dirs[leftDir].dx;
-                int ly = y + dirs[leftDir].dy;
-
-                if (hash.Contains((lx, ly)))
+                foreach (var (dx, dy) in dirs)
                 {
-                    dir = leftDir;
-                    x = lx;
-                    y = ly;
-                }
-                else
-                {
-                    int fx = x + dirs[dir].dx;
-                    int fy = y + dirs[dir].dy;
+                    int nx = x + dx, ny = y + dy;
 
-                    if (hash.Contains((fx, fy)))
+                    // Check if the neighbor is out of bounds or not filled
+                    if (nx < 0 || ny < 0 || nx >= grid.GetLength(1) || ny >= grid.GetLength(0) || !grid[ny, nx])
                     {
-                        x = fx;
-                        y = fy;
-                    }
-                    else
-                    {
-                        dir = (dir + 1) % 4;
+                        // It's an edge pixel, add to boundary points
+                        boundaryPoints.Add(new Point(bounds.X + x * CellSize, bounds.Y + y * CellSize));
+                        break;
                     }
                 }
-
-                if (points.Count > 10000) break;
             }
 
-            points.Add(points[0]); // Close loop
+            // Sort the boundary points in counterclockwise order
+            return SortPointsCounterClockwise(boundaryPoints);
+        }
+
+        private List<Point> SortPointsCounterClockwise(List<Point> points)
+        {
+            // Compute the centroid of the points to use as the reference point
+            double centroidX = 0, centroidY = 0;
+            foreach (var point in points)
+            {
+                centroidX += point.X;
+                centroidY += point.Y;
+            }
+            centroidX /= points.Count;
+            centroidY /= points.Count;
+
+            // Sort points based on the angle relative to the centroid
+            points.Sort((p1, p2) =>
+            {
+                double angle1 = Math.Atan2(p1.Y - centroidY, p1.X - centroidX);
+                double angle2 = Math.Atan2(p2.Y - centroidY, p2.X - centroidX);
+                return angle1.CompareTo(angle2);
+            });
+
             return points;
-        }
-
-        private bool IsEdge(bool[,] grid, int x, int y)
-        {
-            return !GetSafe(grid, x - 1, y) || !GetSafe(grid, x + 1, y) ||
-                   !GetSafe(grid, x, y - 1) || !GetSafe(grid, x, y + 1);
-        }
-
-        private bool GetSafe(bool[,] grid, int x, int y)
-        {
-            return x >= 0 && y >= 0 && y < grid.GetLength(0) && x < grid.GetLength(1) && grid[y, x];
         }
     }
 }
