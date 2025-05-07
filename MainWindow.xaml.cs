@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,8 +11,8 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
-        int testPtX = 260;
-        int testPtY = 300;
+        int testPtX = 300;
+        int testPtY = 310;
 
         const bool DEBUG_ON = false;
         const int CellSize = 2;
@@ -58,7 +59,11 @@ namespace Polygonizer
             if (found is PathGeometry pathGeometry)
             {
                 var (left, right) = FindNearestVerticalEdgeDistances(pathGeometry, testPoint);
+                var (up, down) = FindNearestHorizontalEdgeDistances(pathGeometry, testPoint);
+
                 Console.WriteLine($"Left: {left}, Right: {right}");
+                Console.WriteLine($"Up: {up}, Down: {down}");
+
 
                 // draw a line from the test point to the left edge
                 var leftLine = new Line
@@ -83,6 +88,30 @@ namespace Polygonizer
                     StrokeThickness = 2
                 };
                 MainCanvas.Children.Add(rightLine);
+
+                // draw a line from the test point to the top edge
+                var topLine = new Line
+                {
+                    X1 = testPtX,
+                    Y1 = testPtY,
+                    X2 = testPtX ,
+                    Y2 = testPtY - (up ?? 0),
+                    Stroke = Brushes.Blue,
+                    StrokeThickness = 2
+                };
+                MainCanvas.Children.Add(topLine);
+
+                // draw a line from the test point to the bottom edge
+                var botLine = new Line
+                {
+                    X1 = testPtX,
+                    Y1 = testPtY,
+                    X2 = testPtX,
+                    Y2 = testPtY + (down ?? 0),
+                    Stroke = Brushes.Blue,
+                    StrokeThickness = 2
+                };
+                MainCanvas.Children.Add(botLine);
             }
             else
             {
@@ -103,8 +132,30 @@ namespace Polygonizer
             MainCanvas.Children.Add(circle);
         }
 
+        public static bool IsPathClosed(Geometry geometry)
+        {
+            var pathGeometry = geometry.GetFlattenedPathGeometry();
+
+            // Iterate over each figure in the path geometry
+            foreach (var figure in pathGeometry.Figures)
+            {
+                // Check if the first and last points are the same to see if the path is closed
+                if (figure.Segments.Last() is LineSegment lastSegment)
+                {
+                    // Compare the first and last point
+                    if (figure.StartPoint != lastSegment.Point)
+                    {
+                        return false; // Path is not closed
+                    }
+                }
+            }
+
+            return true; // Path is closed
+        }
+
         public static (double? left, double? right) FindNearestVerticalEdgeDistances(Geometry geometry, Point testPoint)
         {
+            Console.WriteLine("Is path closed? " + IsPathClosed(geometry));
             var pathGeometry = geometry.GetFlattenedPathGeometry(); // Ensures it's a proper PathGeometry
             double? nearestLeft = null;
             double? nearestRight = null;
@@ -113,18 +164,24 @@ namespace Polygonizer
             {
                 Point start = figure.StartPoint;
 
+                int count = 0;
                 foreach (var segment in figure.Segments)
                 {
+
+
                     // Check if the segment is a PolylineSegment
                     if (segment is PolyLineSegment polylineSegment)
                     {
-                        for (int i = 0; i < polylineSegment.Points.Count - 1; i++)
+                        int vertex_count = polylineSegment.Points.Count;
+                        Console.WriteLine("number of points in polyLine: " + vertex_count);
+                        for (int i = 0; i < polylineSegment.Points.Count; i++)
                         {
-                            Point segmentStart = polylineSegment.Points[i];
-                            Point segmentEnd = polylineSegment.Points[i + 1];
+                            count++;
+                            Point segmentStart = polylineSegment.Points[i % vertex_count];
+                            Point segmentEnd = polylineSegment.Points[(i + 1) % vertex_count];
 
                             // Check if the polyline segment is vertical
-                            if (Math.Abs(segmentStart.X - segmentEnd.X) < 0.01)
+                            if (Math.Abs(segmentStart.X - segmentEnd.X) < 0.1)
                             {
                                 double x = segmentStart.X;
 
@@ -133,6 +190,8 @@ namespace Polygonizer
                                 double maxY = Math.Max(segmentStart.Y, segmentEnd.Y);
                                 if (testPoint.Y >= minY && testPoint.Y <= maxY)
                                 {
+                                    Console.WriteLine($"Segment Y range: {minY} to {maxY}, Test Point Y = {testPoint.Y}");
+
                                     if (x < testPoint.X)
                                     {
                                         double dist = testPoint.X - x;
@@ -149,32 +208,65 @@ namespace Polygonizer
                             }
                         }
                     }
-                    // Add more checks here for other segment types (e.g., BezierSegment) if needed
-                    else if (segment is LineSegment lineSegment)
+
+                    start = segment is LineSegment line ? line.Point : start; // Update the start point for the next segment
+                }
+                Console.WriteLine("count: " + count);
+            }
+
+            return (nearestLeft, nearestRight);
+        }
+
+        public static (double? up, double? down) FindNearestHorizontalEdgeDistances(Geometry geometry, Point testPoint)
+        {
+            var pathGeometry = geometry.GetFlattenedPathGeometry(); // Ensures it's a proper PathGeometry
+            double? nearestTop = null;
+            double? nearestBottom = null;
+
+            foreach (var figure in pathGeometry.Figures)
+            {
+                Point start = figure.StartPoint;
+
+                int count = 0;
+                foreach (var segment in figure.Segments)
+                {
+                    // Check if the segment is a PolylineSegment
+                    if (segment is PolyLineSegment polylineSegment)
                     {
-                        Point end = lineSegment.Point;
+                        int vertex_count = polylineSegment.Points.Count;
+                        Console.WriteLine("number of points in polyLine: " + vertex_count);
 
-                        // Check if the segment is vertical
-                        if (Math.Abs(start.X - end.X) < 0.01)
+                        for (int i = 0; i < polylineSegment.Points.Count; i++)
                         {
-                            double x = start.X;
+                            count++;
 
-                            // Ensure Y range contains the test point Y
-                            double minY = Math.Min(start.Y, end.Y);
-                            double maxY = Math.Max(start.Y, end.Y);
-                            if (testPoint.Y >= minY && testPoint.Y <= maxY)
+                            Point segmentStart = polylineSegment.Points[i % vertex_count];
+                            Point segmentEnd = polylineSegment.Points[(i + 1) % vertex_count];
+
+                            // Check if the polyline segment is horizontal
+                            if (Math.Abs(segmentStart.Y - segmentEnd.Y) < 0.1)
                             {
-                                if (x < testPoint.X)
+                                double y = segmentStart.Y;
+
+                                // Ensure Y range contains the test point Y
+                                double minX = Math.Min(segmentStart.X, segmentEnd.X);
+                                double maxX = Math.Max(segmentStart.X, segmentEnd.X);
+                                if (testPoint.X >= minX && testPoint.X <= maxX)
                                 {
-                                    double dist = testPoint.X - x;
-                                    if (nearestLeft == null || dist < nearestLeft)
-                                        nearestLeft = dist;
-                                }
-                                else if (x > testPoint.X)
-                                {
-                                    double dist = x - testPoint.X;
-                                    if (nearestRight == null || dist < nearestRight)
-                                        nearestRight = dist;
+                                    Console.WriteLine($"Segment X range: {minX} to {maxX}, Test Point X = {testPoint.X}");
+
+                                    if (y < testPoint.Y)
+                                    {
+                                        double dist = testPoint.Y - y;
+                                        if (nearestTop == null || dist < nearestTop)
+                                            nearestTop = dist;
+                                    }
+                                    else if (y > testPoint.Y)
+                                    {
+                                        double dist = y - testPoint.Y;
+                                        if (nearestBottom == null || dist < nearestBottom)
+                                            nearestBottom = dist;
+                                    }
                                 }
                             }
                         }
@@ -182,10 +274,13 @@ namespace Polygonizer
 
                     start = segment is LineSegment line ? line.Point : start; // Update the start point for the next segment
                 }
+                Console.WriteLine("count: " + count);
+
             }
 
-            return (nearestLeft, nearestRight);
+            return (nearestTop, nearestBottom);
         }
+
         /// <summary>
         /// Checks if the given point is inside any of the provided geometries.
         /// Returns the first geometry that contains the point, or null if none do.
