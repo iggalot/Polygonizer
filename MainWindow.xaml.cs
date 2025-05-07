@@ -11,8 +11,8 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
-        int testPtX = 300;
-        int testPtY = 310;
+        int testPtX = 405;
+        int testPtY = 475;
 
         const bool DEBUG_ON = false;
         const int CellSize = 2;
@@ -37,6 +37,8 @@ namespace Polygonizer
 
             new Rect(120, 120, 200, 150),
             new Rect(250, 200, 200, 150),
+            new Rect(400, 300, 200, 200),
+
             new Rect(150, 300, 200, 150),
 
             new Rect(410, 410, 100, 100),
@@ -155,7 +157,7 @@ namespace Polygonizer
 
         public static (double? left, double? right) FindNearestVerticalEdgeDistances(Geometry geometry, Point testPoint)
         {
-            Console.WriteLine("Is path closed? " + IsPathClosed(geometry));
+            //Console.WriteLine("Is path closed? " + IsPathClosed(geometry));
             var pathGeometry = geometry.GetFlattenedPathGeometry(); // Ensures it's a proper PathGeometry
             double? nearestLeft = null;
             double? nearestRight = null;
@@ -173,7 +175,7 @@ namespace Polygonizer
                     if (segment is PolyLineSegment polylineSegment)
                     {
                         int vertex_count = polylineSegment.Points.Count;
-                        Console.WriteLine("number of points in polyLine: " + vertex_count);
+                        //Console.WriteLine("number of points in polyLine: " + vertex_count);
                         for (int i = 0; i < polylineSegment.Points.Count; i++)
                         {
                             count++;
@@ -190,7 +192,7 @@ namespace Polygonizer
                                 double maxY = Math.Max(segmentStart.Y, segmentEnd.Y);
                                 if (testPoint.Y >= minY && testPoint.Y <= maxY)
                                 {
-                                    Console.WriteLine($"Segment Y range: {minY} to {maxY}, Test Point Y = {testPoint.Y}");
+                                    //Console.WriteLine($"Segment Y range: {minY} to {maxY}, Test Point Y = {testPoint.Y}");
 
                                     if (x < testPoint.X)
                                     {
@@ -211,7 +213,7 @@ namespace Polygonizer
 
                     start = segment is LineSegment line ? line.Point : start; // Update the start point for the next segment
                 }
-                Console.WriteLine("count: " + count);
+                //Console.WriteLine("count: " + count);
             }
 
             return (nearestLeft, nearestRight);
@@ -234,7 +236,7 @@ namespace Polygonizer
                     if (segment is PolyLineSegment polylineSegment)
                     {
                         int vertex_count = polylineSegment.Points.Count;
-                        Console.WriteLine("number of points in polyLine: " + vertex_count);
+                        //Console.WriteLine("number of points in polyLine: " + vertex_count);
 
                         for (int i = 0; i < polylineSegment.Points.Count; i++)
                         {
@@ -253,7 +255,7 @@ namespace Polygonizer
                                 double maxX = Math.Max(segmentStart.X, segmentEnd.X);
                                 if (testPoint.X >= minX && testPoint.X <= maxX)
                                 {
-                                    Console.WriteLine($"Segment X range: {minX} to {maxX}, Test Point X = {testPoint.X}");
+                                    //Console.WriteLine($"Segment X range: {minX} to {maxX}, Test Point X = {testPoint.X}");
 
                                     if (y < testPoint.Y)
                                     {
@@ -274,7 +276,7 @@ namespace Polygonizer
 
                     start = segment is LineSegment line ? line.Point : start; // Update the start point for the next segment
                 }
-                Console.WriteLine("count: " + count);
+                //Console.WriteLine("count: " + count);
 
             }
 
