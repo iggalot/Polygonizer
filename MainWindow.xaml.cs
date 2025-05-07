@@ -78,11 +78,12 @@ namespace Polygonizer
                         var region = new List<(int x, int y)>();
                         FloodFill(grid, visited, x, y, region);
                         TraceBoundary(region, grid, bounds);
+                        DrawIslandBoundary(region, grid, bounds);
                     }
                 }
             }
 
-            DrawIslandBoundaries();
+
         }
 
         private void FloodFill(bool[,] grid, bool[,] visited, int x, int y, List<(int x, int y)> region)
@@ -306,160 +307,99 @@ namespace Polygonizer
             return result;
         }
 
-        private void DrawIslandBoundaries()
+        private void DrawIslandBoundary(List<(int x, int y)> region, bool[,] grid, Rect bounds)
         {
-            var rects = MainCanvas.Children.OfType<Rectangle>().ToList();
-            var visited = new HashSet<Rectangle>();
-            var islands = new List<List<Rect>>();
+            var boundaryPoints = new List<Point>();
 
-            foreach (var rect in rects)
+            // A simple method to check if a grid point is a boundary (an edge of the island)
+            bool IsBoundary(int x, int y)
             {
-                if (visited.Contains(rect)) continue;
-
-                var queue = new Queue<Rectangle>();
-                var island = new List<Rect>();
-                queue.Enqueue(rect);
-                visited.Add(rect);
-
-                while (queue.Count > 0)
-                {
-                    var current = queue.Dequeue();
-                    var r = new Rect(Canvas.GetLeft(current), Canvas.GetTop(current), current.Width, current.Height);
-                    island.Add(r);
-
-                    foreach (var neighbor in rects)
-                    {
-                        if (visited.Contains(neighbor)) continue;
-
-                        var nr = new Rect(Canvas.GetLeft(neighbor), Canvas.GetTop(neighbor), neighbor.Width, neighbor.Height);
-                        if (r.IntersectsWith(nr) || RectsTouch(r, nr))
-                        {
-                            queue.Enqueue(neighbor);
-                            visited.Add(neighbor);
-                        }
-                    }
-                }
-
-                islands.Add(island);
+                return (x < 0 || y < 0 || x >= grid.GetLength(1) || y >= grid.GetLength(0) || !grid[y, x]);
             }
 
-            foreach (var island in islands)
+            // Loop through each point in the region to find the boundary
+            foreach (var (x, y) in region)
             {
-                var polygon = TraceIslandBoundary(island);
-                if (polygon != null)
+                // Check if any of the 4 adjacent points are out of bounds or not part of the island
+                if (IsBoundary(x - 1, y) || IsBoundary(x + 1, y) || IsBoundary(x, y - 1) || IsBoundary(x, y + 1))
                 {
-                    polygon.Stroke = Brushes.Red;
-                    polygon.StrokeThickness = 2;
-                    polygon.Fill = Brushes.Transparent;
-                    MainCanvas.Children.Add(polygon);
-                }
-            }
-        }
-
-        private Polygon TraceIslandBoundary(List<Rect> rects)
-        {
-            var edgeMap = new Dictionary<(Point, Point), int>(new EdgeComparer());
-
-            foreach (var r in rects)
-            {
-                var edges = new[]
-                {
-            (new Point(r.Left, r.Top), new Point(r.Right, r.Top)),     // top
-            (new Point(r.Right, r.Top), new Point(r.Right, r.Bottom)), // right
-            (new Point(r.Right, r.Bottom), new Point(r.Left, r.Bottom)), // bottom
-            (new Point(r.Left, r.Bottom), new Point(r.Left, r.Top))    // left
-        };
-
-                foreach (var edge in edges)
-                {
-                    var normalized = NormalizeEdge(edge.Item1, edge.Item2);
-                    if (!edgeMap.ContainsKey(normalized))
-                        edgeMap[normalized] = 1;
-                    else
-                        edgeMap[normalized]++;
+                    // This point is part of the boundary, add it to the boundary points list
+                    boundaryPoints.Add(new Point(bounds.X + x * CellSize, bounds.Y + y * CellSize));
                 }
             }
 
-            // Only edges with a count of 1 are boundary edges
-            var outerEdges = edgeMap.Where(e => e.Value == 1).Select(e => e.Key).ToList();
-            if (outerEdges.Count == 0) return null;
-
-            // Chain edges into a polygon
-            var boundaryPoints = ChainBoundaryEdges(outerEdges);
-            if (boundaryPoints.Count < 3) return null;
-
-            var poly = new Polygon
+            // For debugging: Draw a line connecting all boundary points
+            if (boundaryPoints.Count > 1)
             {
-                Stroke = Brushes.Red,
-                StrokeThickness = 2,
-                Fill = Brushes.Transparent
-            };
-            foreach (var pt in boundaryPoints)
-                poly.Points.Add(pt);
-
-            return poly;
-        }
-
-        private List<Point> ChainBoundaryEdges(List<(Point, Point)> edges)
-        {
-            var lookup = new Dictionary<Point, List<Point>>();
-
-            foreach (var (a, b) in edges)
-            {
-                if (!lookup.ContainsKey(a)) lookup[a] = new List<Point>();
-                if (!lookup.ContainsKey(b)) lookup[b] = new List<Point>();
-                lookup[a].Add(b);
-                lookup[b].Add(a);
-            }
-
-            var start = edges[0].Item1;
-            var current = start;
-            var previous = new Point(double.NaN, double.NaN);
-            var result = new List<Point> { current };
-
-            while (true)
-            {
-                var neighbors = lookup[current];
-                Point next = neighbors.FirstOrDefault(p => !p.Equals(previous));
-                if (next == start || next == default) break;
-
-                result.Add(next);
-                previous = current;
-                current = next;
-            }
-
-            return result;
-        }
-
-        private (Point, Point) NormalizeEdge(Point a, Point b)
-        {
-            return a.X < b.X || a.Y < b.Y ? (a, b) : (b, a);
-        }
-
-        private bool RectsTouch(Rect a, Rect b)
-        {
-            return (a.Right == b.Left || a.Left == b.Right) && a.Bottom > b.Top && a.Top < b.Bottom
-                || (a.Bottom == b.Top || a.Top == b.Bottom) && a.Right > b.Left && a.Left < b.Right;
-        }
-
-        private class EdgeComparer : IEqualityComparer<(Point, Point)>
-        {
-            public bool Equals((Point, Point) e1, (Point, Point) e2)
-            {
-                return (e1.Item1 == e2.Item1 && e1.Item2 == e2.Item2) ||
-                       (e1.Item1 == e2.Item2 && e1.Item2 == e2.Item1);
-            }
-
-            public int GetHashCode((Point, Point) edge)
-            {
-                unchecked
+                var polyline = new Polyline
                 {
-                    int h1 = edge.Item1.GetHashCode();
-                    int h2 = edge.Item2.GetHashCode();
-                    return h1 ^ h2;
+                    Stroke = Brushes.Blue,
+                    StrokeThickness = 2,
+                    Points = new PointCollection(boundaryPoints)
+                };
+                MainCanvas.Children.Add(polyline);
+            }
+
+            // Optionally, visualize the boundary points for debugging
+            foreach (var point in boundaryPoints)
+            {
+                var pointEllipse = new Ellipse
+                {
+                    Width = 5,
+                    Height = 5,
+                    Fill = Brushes.Red
+                };
+                Canvas.SetLeft(pointEllipse, point.X - 2.5);  // Center circle
+                Canvas.SetTop(pointEllipse, point.Y - 2.5);   // Center circle
+                MainCanvas.Children.Add(pointEllipse);
+            }
+        }
+
+        // Helper function to get the first external corner from the region
+        private (double x, double y)? GetFirstExternalCorner(List<(int x, int y)> region, bool[,] grid)
+        {
+            foreach (var (x, y) in region)
+            {
+                bool hasTop = GetSafe(grid, x, y - 1);
+                bool hasBottom = GetSafe(grid, x, y + 1);
+                bool hasLeft = GetSafe(grid, x - 1, y);
+                bool hasRight = GetSafe(grid, x + 1, y);
+
+                // Check for external corners
+                if (!hasLeft && !hasTop && hasRight && hasBottom)
+                {
+                    return (x - 1, y - 1); // external corner at top-left
+                }
+                if (!hasRight && !hasTop && hasLeft && hasBottom)
+                {
+                    return (x + 1, y - 1); // external corner at top-right
+                }
+                if (!hasRight && !hasBottom && hasLeft && hasTop)
+                {
+                    return (x + 1, y + 1); // external corner at bottom-right
+                }
+                if (!hasLeft && !hasBottom && hasRight && hasTop)
+                {
+                    return (x - 1, y + 1); // external corner at bottom-left
                 }
             }
+            return null; // No external corner found
         }
 
+        private (double x, double y) GetNextBoundaryPoint((double x, double y) current, Point direction, bool[,] grid)
+        {
+            int x = (int)current.x + (int)direction.X;
+            int y = (int)current.y + (int)direction.Y;
+
+            // Check if the next point is valid (part of the filled region)
+            if (GetSafe(grid, x, y))
+            {
+                return (x, y);
+            }
+            else
+            {
+                return current; // No valid next point found, stay at the current position
+            }
+        }
     }
 }
