@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -11,7 +10,7 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
-        int testPtX = 405;
+        int testPtX = 400;
         int testPtY = 475;
 
         const bool DEBUG_ON = false;
@@ -157,28 +156,29 @@ namespace Polygonizer
 
         public static (double? left, double? right) FindNearestVerticalEdgeDistances(Geometry geometry, Point testPoint)
         {
-            //Console.WriteLine("Is path closed? " + IsPathClosed(geometry));
-            var pathGeometry = geometry.GetFlattenedPathGeometry(); // Ensures it's a proper PathGeometry
+            var pathGeometry = geometry.GetFlattenedPathGeometry();
             double? nearestLeft = null;
             double? nearestRight = null;
+
+            // Check if the test point is on the boundary before starting calculations
+            if (IsPointOnBoundary(geometry, testPoint))
+            {
+                return (null, null); // Exclude measurements for boundary points
+            }
 
             foreach (var figure in pathGeometry.Figures)
             {
                 Point start = figure.StartPoint;
 
-                int count = 0;
                 foreach (var segment in figure.Segments)
                 {
-
-
                     // Check if the segment is a PolylineSegment
                     if (segment is PolyLineSegment polylineSegment)
                     {
                         int vertex_count = polylineSegment.Points.Count;
-                        //Console.WriteLine("number of points in polyLine: " + vertex_count);
+
                         for (int i = 0; i < polylineSegment.Points.Count; i++)
                         {
-                            count++;
                             Point segmentStart = polylineSegment.Points[i % vertex_count];
                             Point segmentEnd = polylineSegment.Points[(i + 1) % vertex_count];
 
@@ -192,8 +192,6 @@ namespace Polygonizer
                                 double maxY = Math.Max(segmentStart.Y, segmentEnd.Y);
                                 if (testPoint.Y >= minY && testPoint.Y <= maxY)
                                 {
-                                    //Console.WriteLine($"Segment Y range: {minY} to {maxY}, Test Point Y = {testPoint.Y}");
-
                                     if (x < testPoint.X)
                                     {
                                         double dist = testPoint.X - x;
@@ -211,9 +209,8 @@ namespace Polygonizer
                         }
                     }
 
-                    start = segment is LineSegment line ? line.Point : start; // Update the start point for the next segment
+                    start = segment is LineSegment line ? line.Point : start;
                 }
-                //Console.WriteLine("count: " + count);
             }
 
             return (nearestLeft, nearestRight);
@@ -221,27 +218,29 @@ namespace Polygonizer
 
         public static (double? up, double? down) FindNearestHorizontalEdgeDistances(Geometry geometry, Point testPoint)
         {
-            var pathGeometry = geometry.GetFlattenedPathGeometry(); // Ensures it's a proper PathGeometry
+            var pathGeometry = geometry.GetFlattenedPathGeometry();
             double? nearestTop = null;
             double? nearestBottom = null;
+
+            // Check if the test point is on the boundary before starting calculations
+            if (IsPointOnBoundary(geometry, testPoint))
+            {
+                return (null, null); // Exclude measurements for boundary points
+            }
 
             foreach (var figure in pathGeometry.Figures)
             {
                 Point start = figure.StartPoint;
 
-                int count = 0;
                 foreach (var segment in figure.Segments)
                 {
                     // Check if the segment is a PolylineSegment
                     if (segment is PolyLineSegment polylineSegment)
                     {
                         int vertex_count = polylineSegment.Points.Count;
-                        //Console.WriteLine("number of points in polyLine: " + vertex_count);
 
                         for (int i = 0; i < polylineSegment.Points.Count; i++)
                         {
-                            count++;
-
                             Point segmentStart = polylineSegment.Points[i % vertex_count];
                             Point segmentEnd = polylineSegment.Points[(i + 1) % vertex_count];
 
@@ -250,13 +249,11 @@ namespace Polygonizer
                             {
                                 double y = segmentStart.Y;
 
-                                // Ensure Y range contains the test point Y
+                                // Ensure X range contains the test point X
                                 double minX = Math.Min(segmentStart.X, segmentEnd.X);
                                 double maxX = Math.Max(segmentStart.X, segmentEnd.X);
                                 if (testPoint.X >= minX && testPoint.X <= maxX)
                                 {
-                                    //Console.WriteLine($"Segment X range: {minX} to {maxX}, Test Point X = {testPoint.X}");
-
                                     if (y < testPoint.Y)
                                     {
                                         double dist = testPoint.Y - y;
@@ -274,13 +271,53 @@ namespace Polygonizer
                         }
                     }
 
-                    start = segment is LineSegment line ? line.Point : start; // Update the start point for the next segment
+                    start = segment is LineSegment line ? line.Point : start;
                 }
-                //Console.WriteLine("count: " + count);
-
             }
 
             return (nearestTop, nearestBottom);
+        }
+
+        // Helper function to check if a point is on any of the boundary segments
+        private static bool IsPointOnBoundary(Geometry geometry, Point testPoint)
+        {
+            var pathGeometry = geometry.GetFlattenedPathGeometry();
+
+            foreach (var figure in pathGeometry.Figures)
+            {
+                foreach (var segment in figure.Segments)
+                {
+                    if (segment is PolyLineSegment polylineSegment)
+                    {
+                        int vertex_count = polylineSegment.Points.Count;
+
+                        for (int i = 0; i < polylineSegment.Points.Count; i++)
+                        {
+                            Point segmentStart = polylineSegment.Points[i % vertex_count];
+                            Point segmentEnd = polylineSegment.Points[(i + 1) % vertex_count];
+
+                            // Check if the point is on the segment using IsPointOnLineSegment logic
+                            if (IsPointOnLineSegment(segmentStart, segmentEnd, testPoint))
+                            {
+                                return true; // The point is on the boundary
+                            }
+                        }
+                    }
+                }
+            }
+            return false; // The point is not on the boundary
+        }
+
+        // Helper function to check if the point lies on the line segment
+        private static bool IsPointOnLineSegment(Point start, Point end, Point testPoint)
+        {
+            // Check if the point is within the bounds of the line segment (both X and Y)
+            bool isOnSegment = (testPoint.X >= Math.Min(start.X, end.X) && testPoint.X <= Math.Max(start.X, end.X)) &&
+                               (testPoint.Y >= Math.Min(start.Y, end.Y) && testPoint.Y <= Math.Max(start.Y, end.Y));
+
+            // Additionally check if the point is collinear with the segment (cross product = 0)
+            double crossProduct = (testPoint.Y - start.Y) * (end.X - start.X) - (testPoint.X - start.X) * (end.Y - start.Y);
+            return isOnSegment && Math.Abs(crossProduct) < 0.1; // Allow small tolerance for floating-point precision
         }
 
         /// <summary>
@@ -357,8 +394,6 @@ namespace Polygonizer
 
 
         }
-
-
 
         private void FloodFill(bool[,] grid, bool[,] visited, int x, int y, List<(int x, int y)> region)
         {
@@ -466,8 +501,6 @@ namespace Polygonizer
                 MainCanvas.Children.Add(circle);
             }
         }
-
-
 
         private bool GetSafe(bool[,] grid, int x, int y)
         {
@@ -636,80 +669,6 @@ namespace Polygonizer
             return -1; // No island contains the point
         }
 
-        private List<Rect> GetIslandRectsContainingPoint(double px, double py)
-        {
-            int index = GetIslandGeometryIndexContainingPoint(px, py);
-            if (index >= 0 && index < Islands.Count)
-                return Islands[index];
-            return null;
-        }
-
-        private Rect? GetIslandBoundsContainingPoint(double px, double py)
-        {
-            int index = GetIslandGeometryIndexContainingPoint(px, py);
-            if (index >= 0 && index < IslandGeometries.Count)
-                return IslandGeometries[index].Bounds;
-            return null;
-        }
-
-        /// <summary>
-        /// Returns the actual width and height of the island border at the given point,
-        /// based on the outermost coordinates of the PathGeometry.
-        /// </summary>
-        private (double width, double height)? GetIslandGeometrySizeAtPoint(double px, double py)
-        {
-            Point point = new Point(px, py);
-
-            // Iterate over each island geometry
-            for (int i = 0; i < IslandGeometries.Count; i++)
-            {
-                // Get the current island's geometry
-                Geometry geometry = IslandGeometries[i];
-
-                // Check if the point is inside the current geometry
-                if (geometry.FillContains(point))
-                {
-                    // If the point is inside the geometry, calculate its bounds
-                    PathGeometry pathGeometry = geometry.GetOutlinedPathGeometry();
-
-                    double minX = double.MaxValue;
-                    double maxX = double.MinValue;
-                    double minY = double.MaxValue;
-                    double maxY = double.MinValue;
-
-                    // Iterate over each figure in the path geometry
-                    foreach (PathFigure figure in pathGeometry.Figures)
-                    {
-                        // Update bounds for the starting point of the figure
-                        UpdateBounds(figure.StartPoint, ref minX, ref maxX, ref minY, ref maxY);
-
-                        // Iterate over each segment of the figure and update bounds
-                        foreach (PathSegment segment in figure.Segments)
-                        {
-                            if (segment is PolyLineSegment poly)
-                            {
-                                foreach (Point p in poly.Points)
-                                    UpdateBounds(p, ref minX, ref maxX, ref minY, ref maxY);
-                            }
-                            else if (segment is LineSegment line)
-                            {
-                                UpdateBounds(line.Point, ref minX, ref maxX, ref minY, ref maxY);
-                            }
-                        }
-                    }
-
-                    // The width and height are the differences between the min and max coordinates
-                    double width = maxX - minX;
-                    double height = maxY - minY;
-
-                    return (width, height);
-                }
-            }
-
-            // If no island contains the point, return null
-            return null;
-        }
-
         /// <summary>
         /// Updates the bounding extents from a point.
         /// </summary>
@@ -720,198 +679,5 @@ namespace Polygonizer
             if (p.Y < minY) minY = p.Y;
             if (p.Y > maxY) maxY = p.Y;
         }
-
-        private void DrawMeasurementLineAtPoint(double px, double py)
-        {
-            var size = GetIslandGeometrySizeAtPoint(px, py);
-
-            if (size.HasValue)
-            {
-                double width = size.Value.width;
-                double height = size.Value.height;
-
-                // Assuming the selected geometry's bounds are already known
-                // You can calculate where to draw the line (we'll use the min/max points from the extents)
-                Point startPoint = new Point(px, py); // Start point of measurement
-                Point endPoint = new Point(px + width, py); // For width
-
-                // Create the line (for width in this case)
-                Line line = new Line
-                {
-                    X1 = startPoint.X,
-                    Y1 = startPoint.Y,
-                    X2 = endPoint.X,
-                    Y2 = endPoint.Y,
-                    Stroke = Brushes.Red, // Line color (Red for visibility)
-                    StrokeThickness = 2
-                };
-
-                // Add the line to the canvas
-                MainCanvas.Children.Add(line);
-
-                // Optionally, show the height as a vertical line
-                startPoint = new Point(px, py); // Reset to initial point
-                endPoint = new Point(px, py + height); // For height
-
-                // Create the vertical line (for height)
-                Line verticalLine = new Line
-                {
-                    X1 = startPoint.X,
-                    Y1 = startPoint.Y,
-                    X2 = endPoint.X,
-                    Y2 = endPoint.Y,
-                    Stroke = Brushes.Blue, // Line color (Blue for height)
-                    StrokeThickness = 2
-                };
-
-                // Add the vertical line to the canvas
-                MainCanvas.Children.Add(verticalLine);
-            }
-            else
-            {
-                MessageBox.Show("No geometry found at this point.");
-            }
-        }
-
-        /// <summary>
-        /// Determines the number of pixels between the island's boundary polygon in the horizontal and vertical directions, passing through point (px, py).
-        /// </summary>
-        private (double horizontalDistance, double verticalDistance)? GetDistanceToIslandBoundary(double px, double py)
-        {
-            Point point = new Point(px, py);
-
-            // Step 1: Iterate through the island geometries
-            for (int i = 0; i < IslandGeometries.Count; i++)
-            {
-                var geometry = IslandGeometries[i];
-
-                // Check if the point is inside the island geometry
-                if (geometry.FillContains(point))
-                {
-                    // Step 2: Get the outlined path geometry
-                    PathGeometry pathGeometry = geometry.GetOutlinedPathGeometry();
-
-                    // Initialize variables to store the minimum horizontal and vertical distances
-                    double minHorizontalDistance = double.MaxValue;
-                    double minVerticalDistance = double.MaxValue;
-
-                    // Step 3: Iterate through the segments of the path geometry to calculate distances
-                    foreach (PathFigure figure in pathGeometry.Figures)
-                    {
-                        // Check distances to each segment
-                        foreach (PathSegment segment in figure.Segments)
-                        {
-                            if (segment is LineSegment lineSegment)
-                            {
-                                // For horizontal distance, compare the X-coordinate of the point with the line's X-coordinate range
-                                minHorizontalDistance = Math.Min(minHorizontalDistance, GetDistanceToHorizontalSegment(lineSegment, point));
-
-                                // For vertical distance, compare the Y-coordinate of the point with the line's Y-coordinate range
-                                minVerticalDistance = Math.Min(minVerticalDistance, GetDistanceToVerticalSegment(lineSegment, point));
-                            }
-                            // You can extend for other types of segments like PolyLineSegment if needed
-                        }
-                    }
-
-                    return (minHorizontalDistance, minVerticalDistance);
-                }
-            }
-
-            return null; // If no island geometry contains the point
-        }
-
-        /// <summary>
-        /// Calculates the horizontal distance between the point and the closest point on the given horizontal line segment.
-        /// </summary>
-        private double GetDistanceToHorizontalSegment(LineSegment lineSegment, Point point)
-        {
-            // Check if the line is horizontal
-            if (lineSegment.Point.Y == point.Y)
-            {
-                // Distance is the horizontal distance (X-difference)
-                return Math.Abs(lineSegment.Point.X - point.X);
-            }
-
-            return double.MaxValue; // Return a large value if the line is not horizontal
-        }
-
-        /// <summary>
-        /// Calculates the vertical distance between the point and the closest point on the given vertical line segment.
-        /// </summary>
-        private double GetDistanceToVerticalSegment(LineSegment lineSegment, Point point)
-        {
-            // Check if the line is vertical
-            if (lineSegment.Point.X == point.X)
-            {
-                // Distance is the vertical distance (Y-difference)
-                return Math.Abs(lineSegment.Point.Y - point.Y);
-            }
-
-            return double.MaxValue; // Return a large value if the line is not vertical
-        }
-
-        private (double leftDistance, double rightDistance)? GetDistanceToVerticalEdges(double px, double py)
-        {
-            Point testPoint = new Point(px, py);
-
-            foreach (var geometry in IslandGeometries)
-            {
-                // Use more precise point-in-geometry test
-                if (!geometry.FillContains(testPoint, 0.5, ToleranceType.Absolute))
-                    continue;
-
-                // Geometry found — now check vertical edges
-                PathGeometry pathGeometry = geometry.GetOutlinedPathGeometry();
-
-                double? nearestLeftEdge = null;
-                double? nearestRightEdge = null;
-
-                foreach (var figure in pathGeometry.Figures)
-                {
-                    Point previousPoint = figure.StartPoint;
-
-                    foreach (var segment in figure.Segments)
-                    {
-                        if (segment is LineSegment lineSegment)
-                        {
-                            Point currentPoint = lineSegment.Point;
-
-                            // Check vertical edge
-                            if (Math.Abs(previousPoint.X - currentPoint.X) < 0.1)
-                            {
-                                double x = previousPoint.X;
-
-                                if (x < px)
-                                {
-                                    if (!nearestLeftEdge.HasValue || x > nearestLeftEdge.Value)
-                                        nearestLeftEdge = x;
-                                }
-                                else if (x > px)
-                                {
-                                    if (!nearestRightEdge.HasValue || x < nearestRightEdge.Value)
-                                        nearestRightEdge = x;
-                                }
-                            }
-
-                            previousPoint = currentPoint;
-                        }
-                    }
-                }
-
-                if (nearestLeftEdge.HasValue && nearestRightEdge.HasValue)
-                {
-                    return (px - nearestLeftEdge.Value, nearestRightEdge.Value - px);
-                }
-
-                // If we got here, the point was inside, but vertical edges weren't found
-                return null;
-            }
-
-            // No geometry contained the point
-            return null;
-        }
-
-
-
     }
 }
