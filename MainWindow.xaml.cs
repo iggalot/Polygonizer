@@ -249,9 +249,6 @@ namespace Polygonizer
             }
         }
 
-
-
-
         private bool GetSafe(bool[,] grid, int x, int y)
         {
             return x >= 0 && y >= 0 && y < grid.GetLength(0) && x < grid.GetLength(1) && grid[y, x];
