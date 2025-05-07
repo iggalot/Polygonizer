@@ -9,8 +9,8 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
-        const int CellSize = 5;
-        const int ExtraPadding = 1;
+        const int CellSize = 2;
+        const int ExtraPadding = 0;
 
         public MainWindow()
         {
@@ -247,50 +247,10 @@ namespace Polygonizer
                     MainCanvas.Children.Add(cornerCircle);
                 }
             }
-
-            // Start tracing from one of the corner points
-            if (externalCornerPoints.Count > 0)
-            {
-                TraceRectangleBoundary(externalCornerPoints[0], grid, bounds);
-            }
         }
 
-        private void TraceRectangleBoundary((double x, double y) startCorner, bool[,] grid, Rect bounds)
-        {
-            var current = startCorner;
-            var boundaryPoints = new List<Point>();
 
-            // March around the boundary until we close the loop
-            do
-            {
-                boundaryPoints.Add(new Point(bounds.X + current.x * CellSize, bounds.Y + current.y * CellSize));
 
-                // Check the 4 adjacent directions (right, down, left, up)
-                var next = GetNextBoundaryPoint(current, grid);
-                current = next;
-
-            } while (current != startCorner);
-
-            // Optionally, visualize the boundary
-            foreach (var pt in boundaryPoints)
-            {
-                var pointEllipse = new Ellipse
-                {
-                    Width = 5,
-                    Height = 5,
-                    Fill = Brushes.Black
-                };
-                Canvas.SetLeft(pointEllipse, pt.X - 2.5);
-                Canvas.SetTop(pointEllipse, pt.Y - 2.5);
-                MainCanvas.Children.Add(pointEllipse);
-            }
-        }
-
-        private (double x, double y) GetNextBoundaryPoint((double x, double y) current, bool[,] grid)
-        {
-            // Implement logic to find the next boundary point here
-            return current; // Placeholder to be filled with boundary logic
-        }
 
         private bool GetSafe(bool[,] grid, int x, int y)
         {
