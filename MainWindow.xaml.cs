@@ -9,8 +9,14 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
+        const bool DEBUG_ON = true;
         const int CellSize = 2;
         const int ExtraPadding = 0;
+
+        List<(double x, double y)> allCornerPoints = new List<(double x, double y)>();
+
+        List<(double x, double y)> externalCornerPoints = new List<(double x, double y)>();
+        List<(double x, double y)> internalCornerPoints = new List<(double x, double y)>();
 
         public MainWindow()
         {
@@ -116,138 +122,90 @@ namespace Polygonizer
 
         private void TraceBoundary(List<(int x, int y)> region, bool[,] grid, Rect bounds)
         {
-            var boundaryPoints = new List<Point>();
-            List<(double x, double y)> allCornerPoints = new List<(double x, double y)>();
-
-            List<(double x, double y)> externalCornerPoints = new List<(double x, double y)>();
-            List<(double x, double y)> internalCornerPoints = new List<(double x, double y)>();
-
-            // Identify corner points based on the corrected definition
             foreach (var (x, y) in region)
             {
-                // Check if the current pixel has two adjacent filled neighbors (horizontal + vertical)
-                bool hasTop = GetSafe(grid, x, y - 1);
-                bool hasBottom = GetSafe(grid, x, y + 1);
-                bool hasLeft = GetSafe(grid, x - 1, y);
-                bool hasRight = GetSafe(grid, x + 1, y);
+                ProcessCornerDetection(grid, x, y);
+            }
 
-                int neighborFilledCount = 0;
-                if (hasTop) neighborFilledCount++;
-                if (hasBottom) neighborFilledCount++;
-                if (hasLeft) neighborFilledCount++;
-                if (hasRight) neighborFilledCount++;
+            externalCornerPoints = RemoveDuplicates(externalCornerPoints);
+            internalCornerPoints = RemoveDuplicates(internalCornerPoints);
 
-                // Check diagonal neighbors for empty space (outside the filled region)
-                bool topLeftEmpty = !GetSafe(grid, x - 1, y - 1);
-                bool topRightEmpty = !GetSafe(grid, x + 1, y - 1);
-                bool bottomLeftEmpty = !GetSafe(grid, x - 1, y + 1);
-                bool bottomRightEmpty = !GetSafe(grid, x + 1, y + 1);
+            DrawCornerPoints(externalCornerPoints, bounds, Brushes.Green);
+            DrawCornerPoints(internalCornerPoints, bounds, Brushes.Red);
+        }
 
-                // Define the corner condition: two adjacent filled pixels (horizontal + vertical)
-                // with an empty diagonal neighbor
-                bool isCorner = false;
+        private void ProcessCornerDetection(bool[,] grid, int x, int y)
+        {
+            bool hasTop = GetSafe(grid, x, y - 1);
+            bool hasBottom = GetSafe(grid, x, y + 1);
+            bool hasLeft = GetSafe(grid, x - 1, y);
+            bool hasRight = GetSafe(grid, x + 1, y);
 
-                // For external corners
-                if (!hasLeft && !hasTop && hasRight && hasBottom && topLeftEmpty)
-                {
-                    allCornerPoints.Add((x - 1, y - 1));
-                    externalCornerPoints.Add((x - 1, y - 1));
-                }
-                if (!hasRight && !hasTop && hasLeft && hasBottom && topRightEmpty)
-                {
-                    allCornerPoints.Add((x + 1, y - 1));
-                    externalCornerPoints.Add((x + 1, y - 1));
-                }
-                if (!hasRight && !hasBottom && hasLeft && hasTop && bottomRightEmpty)
-                {
-                    allCornerPoints.Add((x + 1, y + 1));
-                    externalCornerPoints.Add((x + 1, y + 1));
-                }
-                if (!hasLeft && !hasBottom && hasRight && hasTop && bottomLeftEmpty)
-                {
-                    allCornerPoints.Add((x - 1, y + 1));
-                    externalCornerPoints.Add((x - 1, y + 1));
-                }
+            bool topLeftEmpty = !GetSafe(grid, x - 1, y - 1);
+            bool topRightEmpty = !GetSafe(grid, x + 1, y - 1);
+            bool bottomLeftEmpty = !GetSafe(grid, x - 1, y + 1);
+            bool bottomRightEmpty = !GetSafe(grid, x + 1, y + 1);
 
-                // For internal corners
-                if (!hasLeft && !topLeftEmpty)
-                {
-                    allCornerPoints.Add((x - 1, y));
-                    internalCornerPoints.Add((x - 1, y));
-                }
-                if (!hasTop && !topLeftEmpty)
-                {
-                    allCornerPoints.Add((x, y - 1));
-                    internalCornerPoints.Add((x, y - 1));
-                }
-                if (!hasRight && !topRightEmpty)
-                {
-                    allCornerPoints.Add((x + 1, y));
-                    internalCornerPoints.Add((x + 1, y));
-                }
-                if (!hasTop && !topRightEmpty)
-                {
-                    allCornerPoints.Add((x, y - 1));
-                    internalCornerPoints.Add((x, y - 1));
-                }
-                if (!hasRight && !bottomRightEmpty)
-                {
-                    allCornerPoints.Add((x + 1, y));
-                    internalCornerPoints.Add((x + 1, y));
-                }
-                if (!hasBottom && !bottomRightEmpty)
-                {
-                    allCornerPoints.Add((x, y + 1));
-                    internalCornerPoints.Add((x, y + 1));
-                }
-                if (!hasLeft && !bottomLeftEmpty)
-                {
-                    allCornerPoints.Add((x - 1, y));
-                    internalCornerPoints.Add((x - 1, y));
-                }
-                if (!hasBottom && !bottomLeftEmpty)
-                {
-                    allCornerPoints.Add((x, y + 1));
-                    internalCornerPoints.Add((x, y + 1));
-                }
-
-                externalCornerPoints = RemoveDuplicates(externalCornerPoints);
-                internalCornerPoints = RemoveDuplicates(internalCornerPoints);
-
-                // Visualization of corner points on the canvas
-                foreach (var corner in externalCornerPoints)
-                {
-                    boundaryPoints.Add(new Point(bounds.X + corner.x * CellSize, bounds.Y + corner.y * CellSize));
-
-                    // Add a large circle at the corner point for visualization
-                    var cornerCircle = new Ellipse
-                    {
-                        Width = 10,   // Larger size
-                        Height = 10,  // Larger size
-                        Fill = Brushes.Green
-                    };
-                    Canvas.SetLeft(cornerCircle, bounds.X + corner.x * CellSize - 5);  // Center circle
-                    Canvas.SetTop(cornerCircle, bounds.Y + corner.y * CellSize - 5);   // Center circle
-                    MainCanvas.Children.Add(cornerCircle);
-                }
-
-                foreach (var corner in internalCornerPoints)
-                {
-                    boundaryPoints.Add(new Point(bounds.X + corner.x * CellSize, bounds.Y + corner.y * CellSize));
-
-                    // Add a large circle at the corner point for visualization
-                    var cornerCircle = new Ellipse
-                    {
-                        Width = 10,   // Larger size
-                        Height = 10,  // Larger size
-                        Fill = Brushes.Red
-                    };
-                    Canvas.SetLeft(cornerCircle, bounds.X + corner.x * CellSize - 5);  // Center circle
-                    Canvas.SetTop(cornerCircle, bounds.Y + corner.y * CellSize - 5);   // Center circle
-                    MainCanvas.Children.Add(cornerCircle);
-                }
+            if (DEBUG_ON)
+            {
+                AddExternalCorners(x, y, hasTop, hasBottom, hasLeft, hasRight, topLeftEmpty, topRightEmpty, bottomLeftEmpty, bottomRightEmpty);
+                AddInternalCorners(x, y, hasTop, hasBottom, hasLeft, hasRight, topLeftEmpty, topRightEmpty, bottomLeftEmpty, bottomRightEmpty);
             }
         }
+
+        private void AddExternalCorners(int x, int y, bool hasTop, bool hasBottom, bool hasLeft, bool hasRight,
+                                        bool topLeftEmpty, bool topRightEmpty, bool bottomLeftEmpty, bool bottomRightEmpty)
+        {
+            if (!hasLeft && !hasTop && hasRight && hasBottom && topLeftEmpty)
+                AddCornerPoint(x - 1, y - 1, externalCornerPoints);
+
+            if (!hasRight && !hasTop && hasLeft && hasBottom && topRightEmpty)
+                AddCornerPoint(x + 1, y - 1, externalCornerPoints);
+
+            if (!hasRight && !hasBottom && hasLeft && hasTop && bottomRightEmpty)
+                AddCornerPoint(x + 1, y + 1, externalCornerPoints);
+
+            if (!hasLeft && !hasBottom && hasRight && hasTop && bottomLeftEmpty)
+                AddCornerPoint(x - 1, y + 1, externalCornerPoints);
+        }
+
+        private void AddInternalCorners(int x, int y, bool hasTop, bool hasBottom, bool hasLeft, bool hasRight,
+                                        bool topLeftEmpty, bool topRightEmpty, bool bottomLeftEmpty, bool bottomRightEmpty)
+        {
+            if (!hasLeft && !topLeftEmpty) AddCornerPoint(x - 1, y, internalCornerPoints);
+            if (!hasTop && !topLeftEmpty) AddCornerPoint(x, y - 1, internalCornerPoints);
+            if (!hasRight && !topRightEmpty) AddCornerPoint(x + 1, y, internalCornerPoints);
+            if (!hasTop && !topRightEmpty) AddCornerPoint(x, y - 1, internalCornerPoints);
+            if (!hasRight && !bottomRightEmpty) AddCornerPoint(x + 1, y, internalCornerPoints);
+            if (!hasBottom && !bottomRightEmpty) AddCornerPoint(x, y + 1, internalCornerPoints);
+            if (!hasLeft && !bottomLeftEmpty) AddCornerPoint(x - 1, y, internalCornerPoints);
+            if (!hasBottom && !bottomLeftEmpty) AddCornerPoint(x, y + 1, internalCornerPoints);
+        }
+
+        private void AddCornerPoint(double x, double y, List<(double x, double y)> cornerList)
+        {
+            allCornerPoints.Add((x, y));
+            cornerList.Add((x, y));
+        }
+
+        private void DrawCornerPoints(List<(double x, double y)> corners, Rect bounds, Brush color)
+        {
+            foreach (var (x, y) in corners)
+            {
+                var point = new Point(bounds.X + x * CellSize, bounds.Y + y * CellSize);
+                var circle = new Ellipse
+                {
+                    Width = 10,
+                    Height = 10,
+                    Fill = color
+                };
+                Canvas.SetLeft(circle, point.X - 5);
+                Canvas.SetTop(circle, point.Y - 5);
+                MainCanvas.Children.Add(circle);
+            }
+        }
+
+
 
         private bool GetSafe(bool[,] grid, int x, int y)
         {
