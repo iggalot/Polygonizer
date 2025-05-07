@@ -23,7 +23,6 @@ namespace Polygonizer
             var rectangles = new List<Rect>
             {
                 new Rect(10, 10, 100, 100),
-
                 new Rect(100, 100, 200, 150),
                 new Rect(250, 200, 200, 150),
                 new Rect(500, 100, 100, 80),
@@ -108,11 +107,10 @@ namespace Polygonizer
         private void TraceBoundary(List<(int x, int y)> region, bool[,] grid, Rect bounds)
         {
             var boundaryPoints = new List<Point>();
-            List<(double x, double y)> all_corner_points = new List<(double x, double y)>();
+            List<(double x, double y)> allCornerPoints = new List<(double x, double y)>();
 
-            List<(double x, double y)> external_corner_points = new List<(double x, double y)>();
-            List<(double x, double y)> internal_corner_points = new List<(double x, double y)>();
-
+            List<(double x, double y)> externalCornerPoints = new List<(double x, double y)>();
+            List<(double x, double y)> internalCornerPoints = new List<(double x, double y)>();
 
             // Identify corner points based on the corrected definition
             foreach (var (x, y) in region)
@@ -139,91 +137,75 @@ namespace Polygonizer
                 // with an empty diagonal neighbor
                 bool isCorner = false;
 
-
-                // for external corners
+                // For external corners
                 if (!hasLeft && !hasTop && hasRight && hasBottom && topLeftEmpty)
                 {
-                    all_corner_points.Add((x - 1, y - 1));
-                    external_corner_points.Add((x - 1, y - 1));
+                    allCornerPoints.Add((x - 1, y - 1));
+                    externalCornerPoints.Add((x - 1, y - 1));
                 }
                 if (!hasRight && !hasTop && hasLeft && hasBottom && topRightEmpty)
                 {
-                    all_corner_points.Add((x + 1, y - 1));
-                    external_corner_points.Add((x + 1, y - 1));
+                    allCornerPoints.Add((x + 1, y - 1));
+                    externalCornerPoints.Add((x + 1, y - 1));
                 }
                 if (!hasRight && !hasBottom && hasLeft && hasTop && bottomRightEmpty)
                 {
-                    all_corner_points.Add((x + 1, y + 1));
-                    external_corner_points.Add((x + 1, y + 1));
+                    allCornerPoints.Add((x + 1, y + 1));
+                    externalCornerPoints.Add((x + 1, y + 1));
                 }
-                if (!hasLeft && !hasBottom && hasRight && hasTop && bottomLeftEmpty && external_corner_points.Count < 4)
+                if (!hasLeft && !hasBottom && hasRight && hasTop && bottomLeftEmpty && externalCornerPoints.Count < 4)
                 {
-                    all_corner_points.Add((x - 1, y + 1));
-                    external_corner_points.Add((x - 1, y + 1));
+                    allCornerPoints.Add((x - 1, y + 1));
+                    externalCornerPoints.Add((x - 1, y + 1));
                 }
 
-                // for internal corners
+                // For internal corners
                 if (!hasLeft && !topLeftEmpty)
                 {
-                    all_corner_points.Add((x - 1, y));
-                    internal_corner_points.Add((x - 1, y));
-
+                    allCornerPoints.Add((x - 1, y));
+                    internalCornerPoints.Add((x - 1, y));
                 }
                 if (!hasTop && !topLeftEmpty)
                 {
-                    all_corner_points.Add((x, y - 1));
-                    internal_corner_points.Add((x, y - 1));
+                    allCornerPoints.Add((x, y - 1));
+                    internalCornerPoints.Add((x, y - 1));
                 }
                 if (!hasRight && !topRightEmpty)
                 {
-                    all_corner_points.Add((x + 1, y));
-                    internal_corner_points.Add((x + 1, y));
+                    allCornerPoints.Add((x + 1, y));
+                    internalCornerPoints.Add((x + 1, y));
                 }
                 if (!hasTop && !topRightEmpty)
                 {
-                    all_corner_points.Add((x, y - 1));
-                    internal_corner_points.Add((x, y - 1));
+                    allCornerPoints.Add((x, y - 1));
+                    internalCornerPoints.Add((x, y - 1));
                 }
                 if (!hasRight && !bottomRightEmpty)
                 {
-                    all_corner_points.Add((x + 1, y));
-                    internal_corner_points.Add((x + 1, y));
+                    allCornerPoints.Add((x + 1, y));
+                    internalCornerPoints.Add((x + 1, y));
                 }
                 if (!hasBottom && !bottomRightEmpty)
                 {
-                    all_corner_points.Add((x, y + 1));
-                    internal_corner_points.Add((x, y + 1));
+                    allCornerPoints.Add((x, y + 1));
+                    internalCornerPoints.Add((x, y + 1));
                 }
                 if (!hasLeft && !bottomLeftEmpty)
                 {
-                    all_corner_points.Add((x - 1, y));
-                    internal_corner_points.Add((x - 1, y));
+                    allCornerPoints.Add((x - 1, y));
+                    internalCornerPoints.Add((x - 1, y));
                 }
                 if (!hasBottom && !bottomLeftEmpty)
                 {
-                    all_corner_points.Add((x, y + 1));
-                    internal_corner_points.Add((x, y + 1));
+                    allCornerPoints.Add((x, y + 1));
+                    internalCornerPoints.Add((x, y + 1));
                 }
 
-                all_corner_points = RemoveDuplicates(external_corner_points);
+                externalCornerPoints = RemoveDuplicates(externalCornerPoints);
+                internalCornerPoints = RemoveDuplicates(internalCornerPoints);
 
-                external_corner_points = RemoveDuplicates(external_corner_points);
-                internal_corner_points = RemoveDuplicates(internal_corner_points);
-
-
-
-                //|| 
-                //    (!hasLeft && !hasBottom && hasRight && hasTop && bottomLeftEmpty) || 
-                //    (!hasRight && !hasBottom && hasLeft && hasTop) || 
-                //    (!hasRight && !hasTop && hasLeft && hasBottom))
-
-                //if ((hasLeft && hasBottom && bottomRightEmpty) || (hasRight && hasTop && topLeftEmpty) ||
-                //    (hasLeft && hasTop && bottomLeftEmpty) || (hasRight && hasBottom && topRightEmpty))
-                //{
-                //    isCorner = true;
-                //}
-
-                foreach (var corner in external_corner_points)
+                // Visualization of corner points on the canvas
+                foreach (var corner in externalCornerPoints)
                 {
                     boundaryPoints.Add(new Point(bounds.X + corner.x * CellSize, bounds.Y + corner.y * CellSize));
 
@@ -239,7 +221,7 @@ namespace Polygonizer
                     MainCanvas.Children.Add(cornerCircle);
                 }
 
-                foreach (var corner in internal_corner_points)
+                foreach (var corner in internalCornerPoints)
                 {
                     boundaryPoints.Add(new Point(bounds.X + corner.x * CellSize, bounds.Y + corner.y * CellSize));
 
@@ -254,26 +236,7 @@ namespace Polygonizer
                     Canvas.SetTop(cornerCircle, bounds.Y + corner.y * CellSize - 5);   // Center circle
                     MainCanvas.Children.Add(cornerCircle);
                 }
-
-
-                //if (isCorner)
-                //{
-                //    boundaryPoints.Add(new Point(bounds.X + x * CellSize, bounds.Y + y * CellSize));
-
-                //    // Add a large circle at the corner point for visualization
-                //    var cornerCircle = new Ellipse
-                //    {
-                //        Width = 10,   // Larger size
-                //        Height = 10,  // Larger size
-                //        Fill = Brushes.Green
-                //    };
-                //    Canvas.SetLeft(cornerCircle, bounds.X + x * CellSize - 5);  // Center circle
-                //    Canvas.SetTop(cornerCircle, bounds.Y + y * CellSize - 5);   // Center circle
-                //    MainCanvas.Children.Add(cornerCircle);
-                //}
             }
-
-            // Now you can further connect these corner points if necessary.
         }
 
         private bool GetSafe(bool[,] grid, int x, int y)
@@ -281,101 +244,12 @@ namespace Polygonizer
             return x >= 0 && y >= 0 && y < grid.GetLength(0) && x < grid.GetLength(1) && grid[y, x];
         }
 
-
-        /// This agorithm finds corner nodes "3" based on a filled parameter "1" and an empty parameter "0".  A parameter "2" is added to any "0"
-        /// that is horizontally or vertically adjacent to a "2", and then iterates to 
-        //    using System;
-
-        //class Program
-        //    {
-        //        static void Main()
-        //        {
-        //            // Input grid representing the rectangle pattern
-        //            int[,] grid = {
-        //            { 0, 0, 0, 0, 0 },
-        //            { 0, 1, 0, 1, 0 },
-        //            { 0, 0, 1, 0, 0 },
-        //            { 0, 1, 0, 1, 0 },
-        //            { 0, 0, 0, 0, 0 }
-        //        };
-
-        //            // Output grid to store the processed result
-        //            int[,] outputGrid = new int[grid.GetLength(0), grid.GetLength(1)];
-
-        //            // Step 1: Identify all cells adjacent to a "1" (including diagonals) and mark them as "2"
-        //            for (int i = 0; i < grid.GetLength(0); i++)
-        //            {
-        //                for (int j = 0; j < grid.GetLength(1); j++)
-        //                {
-        //                    if (grid[i, j] == 1)
-        //                    {
-        //                        // Check adjacent cells and mark them as "2"
-        //                        for (int dx = -1; dx <= 1; dx++)
-        //                        {
-        //                            for (int dy = -1; dy <= 1; dy++)
-        //                            {
-        //                                int nx = i + dx;
-        //                                int ny = j + dy;
-
-        //                                if (nx >= 0 && ny >= 0 && nx < grid.GetLength(0) && ny < grid.GetLength(1) && grid[nx, ny] == 0)
-        //                                {
-        //                                    outputGrid[nx, ny] = 2; // Mark as border
-        //                                }
-        //                            }
-        //                        }
-        //                    }
-        //                }
-        //            }
-
-        //            // Step 2: Identify corner cells (those that are diagonal to at least two "1"s) and mark them as "3"
-        //            for (int i = 0; i < grid.GetLength(0); i++)
-        //            {
-        //                for (int j = 0; j < grid.GetLength(1); j++)
-        //                {
-        //                    if (outputGrid[i, j] == 2) // Only check cells marked as border
-        //                    {
-        //                        int countDiagonal = 0;
-        //                        // Check diagonals to count how many "1"s are adjacent diagonally
-        //                        if (i > 0 && j > 0 && grid[i - 1, j - 1] == 1) countDiagonal++; // Top-left
-        //                        if (i > 0 && j < grid.GetLength(1) - 1 && grid[i - 1, j + 1] == 1) countDiagonal++; // Top-right
-        //                        if (i < grid.GetLength(0) - 1 && j > 0 && grid[i + 1, j - 1] == 1) countDiagonal++; // Bottom-left
-        //                        if (i < grid.GetLength(0) - 1 && j < grid.GetLength(1) - 1 && grid[i + 1, j + 1] == 1) countDiagonal++; // Bottom-right
-
-        //                        // If two diagonal "1"s are found, it's a corner
-        //                        if (countDiagonal >= 2)
-        //                        {
-        //                            outputGrid[i, j] = 3; // Mark as corner
-        //                        }
-        //                    }
-        //                }
-        //            }
-
-        //            // Step 3: Display the output grid
-        //            PrintGrid(outputGrid);
-        //        }
-
-        //        // Method to print the grid
-        //        static void PrintGrid(int[,] grid)
-        //        {
-        //            for (int i = 0; i < grid.GetLength(0); i++)
-        //            {
-        //                for (int j = 0; j < grid.GetLength(1); j++)
-        //                {
-        //                    Console.Write(grid[i, j] + " ");
-        //                }
-        //                Console.WriteLine();
-        //            }
-        //        }
-        //    }
-
-
-
-        public static List<(double x, double y)> RemoveDuplicates(List<(double x, double y)> corner_points)
+        public static List<(double x, double y)> RemoveDuplicates(List<(double x, double y)> cornerPoints)
         {
             HashSet<(double x, double y)> uniquePoints = new HashSet<(double x, double y)>();
             List<(double x, double y)> result = new List<(double x, double y)>();
 
-            foreach (var point in corner_points)
+            foreach (var point in cornerPoints)
             {
                 if (uniquePoints.Add(point)) // Add returns false if already exists
                 {
