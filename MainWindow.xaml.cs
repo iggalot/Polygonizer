@@ -10,7 +10,7 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
-        const bool DEBUG_ON = true;
+        const bool DEBUG_ON = false;
         const int CellSize = 2;
         const int ExtraPadding = 0;
 
