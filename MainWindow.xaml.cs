@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Ink;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -18,6 +19,23 @@ namespace Polygonizer
         List<(double x, double y)> externalCornerPoints = new List<(double x, double y)>();
         List<(double x, double y)> internalCornerPoints = new List<(double x, double y)>();
 
+        /// <summary>
+        /// Define our rectangles
+        /// </summary>
+        List<Rect> rectangles = new List<Rect>
+        {
+            new Rect(10, 180, 100, 100),
+
+            new Rect(410, 410, 100, 100),
+            new Rect(120, 120, 200, 150),
+            new Rect(250, 200, 200, 150),
+            new Rect(150, 300, 200, 150),
+
+            new Rect(500, 100, 100, 80),  // this is the isolated rectangle
+            new Rect(540, 140, 100, 80),  // this is the isolated rectangle
+
+        };
+
         public MainWindow()
         {
             InitializeComponent();
@@ -26,20 +44,6 @@ namespace Polygonizer
 
         private void DrawScene()
         {
-            var rectangles = new List<Rect>
-            {
-                new Rect(10, 180, 100, 100),
-
-                new Rect(10, 10, 100, 100),
-                new Rect(120, 120, 200, 150),
-                new Rect(250, 200, 200, 150),
-                new Rect(150, 300, 200, 150),
-
-                new Rect(500, 100, 100, 80),  // this is the isolated rectangle
-                new Rect(540, 140, 100, 80),  // this is the isolated rectangle
-
-            };
-
             // Compute bounds with padding
             Rect bounds = Rect.Empty;
             foreach (var r in rectangles)
