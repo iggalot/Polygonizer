@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -39,7 +38,23 @@ namespace Polygonizer
 
         public double? WidthAtPoint { get; set; } = null;
         public double? HeightAtPoint { get; set; } = null;
+        public List<IslandData> IslandResults { get; private set; } = new List<IslandData>();
 
+        public class IslandData
+        {
+            private int Id;
+            private double Area;
+            private Point CentroidPt;
+            private Geometry IslandGeometry;
+
+            public IslandData(int i, double v, Point centroid, Geometry islandGeometry)
+            {
+                this.Id = i;
+                this.Area = v;
+                this.CentroidPt = centroid;
+                this.IslandGeometry = islandGeometry;
+            }
+        }
 
         /// <summary>
         /// Define our rectangles
@@ -568,6 +583,10 @@ namespace Polygonizer
 
                 IslandGeometries.Add(combined);
 
+                var pathGeometry = combined.GetFlattenedPathGeometry();
+                Point centroid = ComputeCentroidFromGeometry(pathGeometry);
+                IslandResults.Add(new IslandData(i, combined.GetArea(), centroid, pathGeometry));
+
                 Path path = new Path
                 {
                     Stroke = Brushes.Black,
@@ -577,10 +596,6 @@ namespace Polygonizer
                 };
 
                 MainCanvas.Children.Add(path);
-
-                var pathGeometry = combined.GetFlattenedPathGeometry();
-                Point centroid = ComputeCentroidFromGeometry(pathGeometry);
-                Console.WriteLine($"{i}:  area: " + combined.GetArea() + $"     Centroid: {centroid}");
 
 
 
