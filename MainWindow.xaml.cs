@@ -47,20 +47,17 @@ namespace Polygonizer
         public static readonly List<Rect> DefaultRectangles = new List<Rect>
         {
             new Rect(10, 180, 100, 100),
-            new Rect(80, 250, 100, 100),
-                        new Rect(150, 320, 100, 100),
+
+            new Rect(120, 120, 200, 150),
+            new Rect(250, 200, 200, 150),
+            new Rect(400, 300, 200, 200),
+
+            new Rect(200, 300, 200, 150),
+            new Rect(460, 480, 100, 100),
 
 
-            //new Rect(120, 120, 200, 150),
-            //new Rect(250, 200, 200, 150),
-            //new Rect(400, 300, 200, 200),
-
-            //new Rect(150, 300, 200, 150),
-            //new Rect(410, 480, 100, 100),
-
-
-            //new Rect(500, 100, 100, 80),  // this is the isolated rectangle
-            //new Rect(540, 140, 100, 80),  // this is the isolated rectangle
+            new Rect(500, 100, 100, 80),
+            new Rect(540, 140, 100, 80),
         };
 
         public List<Rect> rectangles = DefaultRectangles;
