@@ -24,6 +24,8 @@ namespace Polygonizer
         double? up = null;
         double? down = null;
 
+        string title_str = "";
+
         List<(double x, double y)> allCornerPoints = new List<(double x, double y)>();
         List<(double x, double y)> externalCornerPoints = new List<(double x, double y)>();
         List<(double x, double y)> internalCornerPoints = new List<(double x, double y)>();
@@ -67,17 +69,17 @@ namespace Polygonizer
                 //Point testPoint = new Point(testPtX, testPtY);
                 //Geometry found = FindContainingGeometry(IslandGeometries, testPoint);
                 //ComputeHeightAndWidthAtPoint(found, testPoint);
-                //Draw(MainCanvas);
+                //UpdateUI(MainCanvas);
                 bFirstLoad = false;
             };
         }
 
-        private void Draw(Canvas cnv)
+        private void UpdateUI(Canvas cnv)
         {
             if (!bFirstLoad)
             {
 
-                // Draw the test point marker
+                // UpdateUI the test point marker
                 Ellipse circle = new Ellipse
                 {
                     Width = 10,
@@ -88,14 +90,17 @@ namespace Polygonizer
                 Canvas.SetTop(circle, testPtY - 5);
                 MainCanvas.Children.Add(circle);
 
-                // Draw distance lines
+                // Draw the island Boundary
+                DrawUnionOutlineWithColors(rectangles);
+
+                // UpdateUI distance lines
                 DrawLineHoriz(-left, testPtX, testPtY, Brushes.Red);
                 DrawLineHoriz(right, testPtX, testPtY, Brushes.Red);
                 DrawLineVert(-up, testPtX, testPtY, Brushes.Blue);  // up is negative on the screen
                 DrawLineVert(down, testPtX, testPtY, Brushes.Blue);
+
+                Title = title_str;
             }
-
-
         }
 
         private void ComputeHeightAndWidthAtPoint(Geometry found, Point testPoint)
@@ -103,11 +108,11 @@ namespace Polygonizer
             WidthAtPoint = null;
             HeightAtPoint = null;
 
-            string title_str = $"At {testPtX}, {testPtY} -- ";
+            title_str = $"At {testPtX}, {testPtY} -- ";
 
             if (found == null)
             {
-                Title = title_str + "There is no island.";
+                title_str = title_str + "There is no island.";
                 left = null;
                 right = null;
                 up = null;
@@ -117,7 +122,7 @@ namespace Polygonizer
 
             if (!(found is PathGeometry) && !(found is RectangleGeometry))
             {
-                Title = title_str + "Unsupported geometry.";
+                title_str = title_str + "Unsupported geometry.";
                 left = null;
                 right = null;
                 up = null;
@@ -141,9 +146,7 @@ namespace Polygonizer
             if (up.HasValue && down.HasValue)
                 HeightAtPoint = up.Value + down.Value;
 
-
             title_str += $"Width: {WidthAtPoint}, Height: {HeightAtPoint}";
-            Title = title_str;
         }
 
         private void DrawLineVert(double? offset, double ptX, double ptY, Brush color)
@@ -406,7 +409,7 @@ namespace Polygonizer
                         grid[y, x] = true;
             }
 
-            // Draw filled rectangles
+            // UpdateUI filled rectangles
             foreach (var rect in rectangles)
             {
                 var fill = new Rectangle
@@ -430,7 +433,6 @@ namespace Polygonizer
                         var region = new List<(int x, int y)>();
                         FloodFill(grid, visited, x, y, region);
                         TraceBoundary(region, grid, bounds);
-                        DrawIslandBoundary(rectangles);
                     }
                 }
             }
@@ -646,12 +648,6 @@ namespace Polygonizer
             return a.IntersectsWith(b) || a.Contains(b) || b.Contains(a);
         }
 
-        private void DrawIslandBoundary(List<Rect> rectangles)
-        {
-            DrawUnionOutlineWithColors(rectangles);
-
-        }
-
         /// <summary>
         /// Returns an index for the island group that contains the point(px,py);
         /// </summary>
@@ -734,7 +730,7 @@ namespace Polygonizer
             DrawScene();
 
             ComputeHeightAndWidthAtPoint(found, testPoint);
-            Draw(MainCanvas);
+            UpdateUI(MainCanvas);
 
         }
     }
