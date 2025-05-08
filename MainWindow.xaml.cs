@@ -10,10 +10,10 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
-        int testPtX = 400;
-        int testPtY = 300;
+        double testPtX = 400;
+        double testPtY = 300;
 
-        const bool DEBUG_ON = true;
+        const bool DEBUG_ON = false;  // switch to display additional debug info 
         const int CellSize = 2;
         const int ExtraPadding = 0;
 
@@ -22,9 +22,11 @@ namespace Polygonizer
         List<(double x, double y)> internalCornerPoints = new List<(double x, double y)>();
 
         // Define the Islands for our rectagles -- where Islands are independent groupings of overlapping rectangles.
-        List<List<Rect>> Islands = new List<List<Rect>>();
-        private List<Geometry> IslandGeometries = new List<Geometry>();
+        public List<List<Rect>> Islands = new List<List<Rect>>();
+        public List<Geometry> IslandGeometries = new List<Geometry>();
 
+        public double? WidthAtPoint { get; set; } = null;
+        public double? HeightAtPoint { get; set; } = null;
 
 
         /// <summary>
@@ -50,78 +52,27 @@ namespace Polygonizer
         public MainWindow()
         {
             InitializeComponent();
-            DrawScene();
 
-            Point testPoint = new Point(testPtX, testPtY);
-            Geometry found = FindContainingGeometry(IslandGeometries, testPoint);
-
-
-            if (found is PathGeometry pathGeometry)
+            this.Loaded += (s, e) =>
             {
-                var (left, right) = FindNearestVerticalEdgeDistances(pathGeometry, testPoint);
-                var (up, down) = FindNearestHorizontalEdgeDistances(pathGeometry, testPoint);
+                DrawScene();
 
-                Console.WriteLine($"Left: {left}, Right: {right}");
-                Console.WriteLine($"Up: {up}, Down: {down}");
+                Point testPoint = new Point(testPtX, testPtY);
+                Geometry found = FindContainingGeometry(IslandGeometries, testPoint);
+                ComputeHeightAndWidthAtPoint(found, testPoint);
+            };
 
+        }
 
-                // draw a line from the test point to the left edge
-                var leftLine = new Line
-                {
-                    X1 = testPtX,
-                    Y1 = testPtY,
-                    X2 = testPtX - (left ?? 0),
-                    Y2 = testPtY,
-                    Stroke = Brushes.Red,
-                    StrokeThickness = 2
-                };
-                MainCanvas.Children.Add(leftLine);
+        private void ComputeHeightAndWidthAtPoint(Geometry found, Point testPoint)
+        {
+            WidthAtPoint = null;
+            HeightAtPoint = null;
 
-                // draw a line from the test point to the right edge
-                var rightLine = new Line
-                {
-                    X1 = testPtX,
-                    Y1 = testPtY,
-                    X2 = testPtX + (right ?? 0),
-                    Y2 = testPtY,
-                    Stroke = Brushes.Red,
-                    StrokeThickness = 2
-                };
-                MainCanvas.Children.Add(rightLine);
+            string title_str = $"At {testPtX}, {testPtY} -- ";
 
-                // draw a line from the test point to the top edge
-                var topLine = new Line
-                {
-                    X1 = testPtX,
-                    Y1 = testPtY,
-                    X2 = testPtX ,
-                    Y2 = testPtY - (up ?? 0),
-                    Stroke = Brushes.Blue,
-                    StrokeThickness = 2
-                };
-                MainCanvas.Children.Add(topLine);
-
-                // draw a line from the test point to the bottom edge
-                var botLine = new Line
-                {
-                    X1 = testPtX,
-                    Y1 = testPtY,
-                    X2 = testPtX,
-                    Y2 = testPtY + (down ?? 0),
-                    Stroke = Brushes.Blue,
-                    StrokeThickness = 2
-                };
-                MainCanvas.Children.Add(botLine);
-            }
-            else
-            {
-                Console.WriteLine("Geometry is not a PathGeometry.");
-            }
-
-
-
-            // draw the test point marker
-            var circle = new Ellipse
+            // Draw the test point marker
+            Ellipse circle = new Ellipse
             {
                 Width = 10,
                 Height = 10,
@@ -130,6 +81,78 @@ namespace Polygonizer
             Canvas.SetLeft(circle, testPtX - 5);
             Canvas.SetTop(circle, testPtY - 5);
             MainCanvas.Children.Add(circle);
+
+            if (found == null)
+            {
+                Console.WriteLine("Geometry is null.");
+                Title = title_str + "There is no island.";
+                return;
+            }
+
+            if (!(found is PathGeometry) && !(found is RectangleGeometry))
+            {
+                Console.WriteLine("Unsupported geometry type: " + found.GetType());
+                Title = title_str + "Unsupported geometry.";
+                return;
+            }
+
+            // Compute distances
+            var vertical = FindNearestVerticalEdgeDistances(found, testPoint);
+            var left = vertical.left;
+            var right = vertical.right;
+
+            var horizontal = FindNearestHorizontalEdgeDistances(found, testPoint);
+            var up = horizontal.up;
+            var down = horizontal.down;
+
+            // Calculate width and height if both sides are available
+            if (left.HasValue && right.HasValue)
+                WidthAtPoint = left.Value + right.Value;
+
+            if (up.HasValue && down.HasValue)
+                HeightAtPoint = up.Value + down.Value;
+
+            Console.WriteLine($"Left: {left}, Right: {right}");
+            Console.WriteLine($"Up: {up}, Down: {down}");
+
+            // Draw distance lines
+            DrawLineHoriz(-left, testPtX, testPtY, Brushes.Red);
+            DrawLineHoriz(right, testPtX, testPtY, Brushes.Red);
+            DrawLineVert(-up, testPtX, testPtY, Brushes.Blue);  // up is negative on the screen
+            DrawLineVert(down, testPtX, testPtY, Brushes.Blue);
+
+            title_str += $"Width: {WidthAtPoint}, Height: {HeightAtPoint}";
+            Title = title_str;
+        }
+
+        private void DrawLineVert(double? offset, double ptX, double ptY, Brush color)
+        {
+            // draw a line from the test point to the offset edge
+            var leftLine = new Line
+            {
+                X1 = testPtX,
+                Y1 = testPtY,
+                X2 = testPtX,
+                Y2 = testPtY + (offset ?? 0),
+                Stroke = color,
+                StrokeThickness = 2
+            };
+            MainCanvas.Children.Add(leftLine);
+        }
+
+        private void DrawLineHoriz(double? offset, double ptX, double ptY, Brush color)
+        {
+            // draw a line from the test point to the offset edge
+            var leftLine = new Line
+            {
+                X1 = ptX,
+                Y1 = ptY,
+                X2 = ptX + (offset ?? 0),
+                Y2 = ptY,
+                Stroke = color,
+                StrokeThickness = 2
+            };
+            MainCanvas.Children.Add(leftLine);
         }
 
         public static bool IsPathClosed(Geometry geometry)
@@ -677,6 +700,17 @@ namespace Polygonizer
             if (p.X > maxX) maxX = p.X;
             if (p.Y < minY) minY = p.Y;
             if (p.Y > maxY) maxY = p.Y;
+        }
+
+        private void MainCanvas_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            MainCanvas.Children.Clear();
+            testPtX = e.GetPosition(MainCanvas).X;
+            testPtY = e.GetPosition(MainCanvas).Y;
+            Point testPoint = new Point(testPtX, testPtY);
+            Geometry found = FindContainingGeometry(IslandGeometries, testPoint);
+            DrawScene();
+            ComputeHeightAndWidthAtPoint(found, testPoint);
         }
     }
 }
