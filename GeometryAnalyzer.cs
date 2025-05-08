@@ -23,6 +23,67 @@ namespace Polygonizer
 
         public List<Rect> DataRects = new List<Rect>();
 
+        private QuadtreeNode quadtreeRoot;
+        private bool quadtreeBuilt = false;
+
+        public void BuildQuadtree()
+        {
+            if (quadtreeBuilt)
+                return;
+
+            // Check if IslandResults is empty
+            if (IslandResults == null || IslandResults.Count == 0)
+                return;
+
+            // Initialize bounds using the first valid geometry
+            Rect bounds = Rect.Empty;
+            bool firstGeometryFound = false;
+
+            // Loop through IslandResults and find the first valid Geometry
+            foreach (var island in IslandResults)
+            {
+                if (island != null && island.IslandGeometry != null)
+                {
+                    bounds = island.IslandGeometry.Bounds; // Set the initial bounds
+                    firstGeometryFound = true;
+                    break; // Stop once we find a valid geometry
+                }
+            }
+
+            // If no valid geometries are found, return early
+            if (!firstGeometryFound)
+                return;
+
+            // Expand the bounds to include all valid geometries in IslandResults
+            foreach (var island in IslandResults)
+            {
+                if (island != null && island.IslandGeometry != null)
+                {
+                    bounds.Union(island.IslandGeometry.Bounds);
+                }
+            }
+
+            // Create the quadtree with the calculated bounds
+            quadtreeRoot = new QuadtreeNode(bounds);
+
+            // Insert all valid geometries into the quadtree
+            foreach (var island in IslandResults)
+            {
+                if (island != null && island.IslandGeometry != null)
+                {
+                    quadtreeRoot.Insert(island.IslandGeometry);
+                }
+            }
+        }
+
+        public Geometry FindContainingGeometry(List<Geometry> geometries, Point point)
+        {
+            if (quadtreeRoot == null)
+                BuildQuadtree();
+
+            return quadtreeRoot.FindContaining(point);
+        }
+
         public GeometryAnalyzer(List<Rect> rects)
         {
             DataRects = rects;
@@ -30,6 +91,7 @@ namespace Polygonizer
 
         public void Analyze()
         {
+            bool islandResultsChanged = false;
             // Step 1: Group rectangles into connected Islands
             Islands = GroupConnectedRectangles(DataRects);
 
@@ -48,7 +110,15 @@ namespace Polygonizer
                 var pathGeometry = combined.GetFlattenedPathGeometry();
                 Point centroid = ComputeCentroidFromGeometry(pathGeometry);
                 IslandResults.Add(new IslandData(i, combined.GetArea(), centroid, pathGeometry));
+                islandResultsChanged = true;
+
             }
+
+            if(islandResultsChanged is true)
+            {
+                BuildQuadtree();
+            }
+
 
             // todo
         }

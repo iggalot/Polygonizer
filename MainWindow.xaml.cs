@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -44,7 +45,7 @@ namespace Polygonizer
             new Rect(50, 45, 10, 10),
 
 
-            new Rect(10, 180, 100, 100),
+            new Rect(100, 10, 200, 200),
 
             new Rect(120, 120, 200, 150),
             new Rect(250, 200, 200, 150),
@@ -131,45 +132,45 @@ namespace Polygonizer
         }
         private void DrawScene()
         {
-            // Compute bounds with padding
-            Rect bounds = Rect.Empty;
-            foreach (var r in rectangles)
-                bounds.Union(r);
-            bounds.Inflate(ExtraPadding, ExtraPadding);
+            //// Compute bounds with padding
+            //Rect bounds = Rect.Empty;
+            //foreach (var r in rectangles)
+            //    bounds.Union(r);
+            //bounds.Inflate(ExtraPadding, ExtraPadding);
 
-            int cols = (int)Math.Ceiling(bounds.Width / CellSize);
-            int rows = (int)Math.Ceiling(bounds.Height / CellSize);
-            bool[,] grid = new bool[rows, cols];
-            bool[,] visited = new bool[rows, cols];
+            //int cols = (int)Math.Ceiling(bounds.Width / CellSize);
+            //int rows = (int)Math.Ceiling(bounds.Height / CellSize);
+            //bool[,] grid = new bool[rows, cols];
+            //bool[,] visited = new bool[rows, cols];
 
-            // Fill grid with rectangles
-            foreach (var rect in rectangles)
-            {
-                int x0 = (int)((rect.X - bounds.X) / CellSize);
-                int y0 = (int)((rect.Y - bounds.Y) / CellSize);
-                int x1 = (int)Math.Ceiling((rect.Right - bounds.X) / CellSize);
-                int y1 = (int)Math.Ceiling((rect.Bottom - bounds.Y) / CellSize);
+            //// Fill grid with rectangles
+            //foreach (var rect in rectangles)
+            //{
+            //    int x0 = (int)((rect.X - bounds.X) / CellSize);
+            //    int y0 = (int)((rect.Y - bounds.Y) / CellSize);
+            //    int x1 = (int)Math.Ceiling((rect.Right - bounds.X) / CellSize);
+            //    int y1 = (int)Math.Ceiling((rect.Bottom - bounds.Y) / CellSize);
 
-                for (int y = y0; y < y1; y++)
-                    for (int x = x0; x < x1; x++)
-                        grid[y, x] = true;
-            }
+            //    for (int y = y0; y < y1; y++)
+            //        for (int x = x0; x < x1; x++)
+            //            grid[y, x] = true;
+            //}
 
-            // Flood fill to find all distinct regions
-            for (int y = 0; y < rows; y++)
-            {
-                for (int x = 0; x < cols; x++)
-                {
-                    if (grid[y, x] && !visited[y, x])
-                    {
-                        var region = new List<(int x, int y)>();
-                        geometryAnalyzer.FloodFill(grid, visited, x, y, region);
-                        geometryAnalyzer.TraceBoundary(region, grid, bounds);
-                        DrawCornerPoints(geometryAnalyzer.externalCornerPoints, bounds, Brushes.Green);
-                        DrawCornerPoints(geometryAnalyzer.internalCornerPoints, bounds, Brushes.Red);
-                    }
-                }
-            }
+            //// Flood fill to find all distinct regions
+            //for (int y = 0; y < rows; y++)
+            //{
+            //    for (int x = 0; x < cols; x++)
+            //    {
+            //        if (grid[y, x] && !visited[y, x])
+            //        {
+            //            var region = new List<(int x, int y)>();
+            //            geometryAnalyzer.FloodFill(grid, visited, x, y, region);
+            //            geometryAnalyzer.TraceBoundary(region, grid, bounds);
+            //            DrawCornerPoints(geometryAnalyzer.externalCornerPoints, bounds, Brushes.Green);
+            //            DrawCornerPoints(geometryAnalyzer.internalCornerPoints, bounds, Brushes.Red);
+            //        }
+            //    }
+            //}
         }
         private void DrawCornerPoints(List<(double x, double y)> corners, Rect bounds, Brush color)
         {
@@ -235,9 +236,8 @@ namespace Polygonizer
             testPtX = testPoint.X;
             testPtY = testPoint.Y;
 
-            // Optional: Only clear measurement overlays instead of full canvas
             MainCanvas.Children.Clear();
-
+            // Optional: Only clear measurement overlays instead of full canvas
             DrawScene();
 
             UpdateUI(MainCanvas);
@@ -251,10 +251,7 @@ namespace Polygonizer
                     double width = left.Value + right.Value;
                     double height = up.Value + down.Value;
 
-                    DrawOffsetLine(-left.Value, testPoint.X, testPoint.Y, Brushes.Red, "horizontal");
-                    DrawOffsetLine(right.Value, testPoint.X, testPoint.Y, Brushes.Red, "horizontal");
-                    DrawOffsetLine(-up.Value, testPoint.X, testPoint.Y, Brushes.Blue, "vertical");
-                    DrawOffsetLine(down.Value, testPoint.X, testPoint.Y, Brushes.Blue, "vertical");
+                    UpdateMeasurementLines(testPoint, left, right, up, down);
 
                     Title = $"At {testPtX:F0}, {testPtY:F0} -- Height: {height:F2}, Width: {width:F2}";
                 }
@@ -266,6 +263,22 @@ namespace Polygonizer
 
             // Draw marker for test point
             DrawTestPointMarker(testPoint);
+        }
+
+        private void UpdateMeasurementLines(Point testPoint, double? left, double? right, double? up, double? down)
+        {
+            // Clear only the lines
+            var linesToClear = MainCanvas.Children.OfType<Line>().ToList();
+            foreach (var line in linesToClear)
+            {
+                MainCanvas.Children.Remove(line);
+            }
+
+            // Redraw the necessary lines
+            if (left.HasValue) DrawOffsetLine(-left.Value, testPoint.X, testPoint.Y, Brushes.Red, "horizontal");
+            if (right.HasValue) DrawOffsetLine(right.Value, testPoint.X, testPoint.Y, Brushes.Red, "horizontal");
+            if (up.HasValue) DrawOffsetLine(-up.Value, testPoint.X, testPoint.Y, Brushes.Blue, "vertical");
+            if (down.HasValue) DrawOffsetLine(down.Value, testPoint.X, testPoint.Y, Brushes.Blue, "vertical");
         }
 
         private void DrawTestPointMarker(Point pt)
@@ -282,4 +295,5 @@ namespace Polygonizer
         }
 
     }
+
 }
