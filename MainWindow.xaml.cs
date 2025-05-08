@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -10,6 +11,8 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
+        private const double tolerance = 0.1;
+
         private bool bFirstLoad = true;
 
         double testPtX = 0;
@@ -66,10 +69,6 @@ namespace Polygonizer
             {
                 DrawScene();
 
-                //Point testPoint = new Point(testPtX, testPtY);
-                //Geometry found = FindContainingGeometry(IslandGeometries, testPoint);
-                //ComputeHeightAndWidthAtPoint(found, testPoint);
-                //UpdateUI(MainCanvas);
                 bFirstLoad = false;
             };
         }
@@ -78,7 +77,6 @@ namespace Polygonizer
         {
             if (!bFirstLoad)
             {
-
                 // UpdateUI the test point marker
                 Ellipse circle = new Ellipse
                 {
@@ -86,18 +84,33 @@ namespace Polygonizer
                     Height = 10,
                     Fill = Brushes.Black
                 };
+
                 Canvas.SetLeft(circle, testPtX - 5);
                 Canvas.SetTop(circle, testPtY - 5);
                 MainCanvas.Children.Add(circle);
+
+                // UpdateUI filled rectangles
+                foreach (var rect in rectangles)
+                {
+                    var fill = new Rectangle
+                    {
+                        Width = rect.Width,
+                        Height = rect.Height,
+                        Fill = Brushes.LightBlue
+                    };
+                    Canvas.SetLeft(fill, rect.X);
+                    Canvas.SetTop(fill, rect.Y);
+                    MainCanvas.Children.Add(fill);
+                }
 
                 // Draw the island Boundary
                 DrawUnionOutlineWithColors(rectangles);
 
                 // UpdateUI distance lines
-                DrawLineHoriz(-left, testPtX, testPtY, Brushes.Red);
-                DrawLineHoriz(right, testPtX, testPtY, Brushes.Red);
-                DrawLineVert(-up, testPtX, testPtY, Brushes.Blue);  // up is negative on the screen
-                DrawLineVert(down, testPtX, testPtY, Brushes.Blue);
+                DrawOffsetLine(-left, testPtX, testPtY, Brushes.Red, "horizontal");
+                DrawOffsetLine(right, testPtX, testPtY, Brushes.Red, "horizontal");
+                DrawOffsetLine(-up, testPtX, testPtY, Brushes.Blue, "vertical");  // up is negative on the screen
+                DrawOffsetLine(down, testPtX, testPtY, Brushes.Blue, "vertical");
 
                 Title = title_str;
             }
@@ -130,14 +143,11 @@ namespace Polygonizer
                 return;
             }
 
-            // Compute distances
-            var vertical = FindNearestVerticalEdgeDistances(found, testPoint);
-            left = vertical.left;
-            right = vertical.right;
-
-            var horizontal = FindNearestHorizontalEdgeDistances(found, testPoint);
-            up = horizontal.up;
-            down = horizontal.down;
+            var nearest = FindNearestEdgeDistances(found, testPoint);
+            left = nearest.left;
+            right = nearest.right;
+            up = nearest.up;
+            down = nearest.down;
 
             // Calculate width and height if both sides are available
             if (left.HasValue && right.HasValue)
@@ -149,34 +159,36 @@ namespace Polygonizer
             title_str += $"Width: {WidthAtPoint}, Height: {HeightAtPoint}";
         }
 
-        private void DrawLineVert(double? offset, double ptX, double ptY, Brush color)
+        private void DrawOffsetLine(double? offset, double ptX, double ptY, Brush color, string direction)
         {
-            // draw a line from the test point to the offset edge
-            var leftLine = new Line
-            {
-                X1 = testPtX,
-                Y1 = testPtY,
-                X2 = testPtX,
-                Y2 = testPtY + (offset ?? 0),
-                Stroke = color,
-                StrokeThickness = 2
-            };
-            MainCanvas.Children.Add(leftLine);
-        }
+            if (offset == null) return;
 
-        private void DrawLineHoriz(double? offset, double ptX, double ptY, Brush color)
-        {
-            // draw a line from the test point to the offset edge
-            var leftLine = new Line
+            double x2 = ptX;
+            double y2 = ptY;
+
+            switch (direction.ToLower())
+            {
+                case "vertical":
+                    y2 += offset.Value;
+                    break;
+                case "horizontal":
+                    x2 += offset.Value;
+                    break;
+                default:
+                    throw new ArgumentException("Direction must be 'vertical' or 'horizontal'.");
+            }
+
+            var newLine = new Line
             {
                 X1 = ptX,
                 Y1 = ptY,
-                X2 = ptX + (offset ?? 0),
-                Y2 = ptY,
+                X2 = x2,
+                Y2 = y2,
                 Stroke = color,
                 StrokeThickness = 2
             };
-            MainCanvas.Children.Add(leftLine);
+
+            MainCanvas.Children.Add(newLine);
         }
 
         public static bool IsPathClosed(Geometry geometry)
@@ -200,129 +212,94 @@ namespace Polygonizer
             return true; // Path is closed
         }
 
-        public static (double? left, double? right) FindNearestVerticalEdgeDistances(Geometry geometry, Point testPoint)
+        public static (double? left, double? right, double? up, double? down) FindNearestEdgeDistances(Geometry geometry, Point testPoint, double tolerance = 1e-6)
         {
             var pathGeometry = geometry.GetFlattenedPathGeometry();
+
             double? nearestLeft = null;
             double? nearestRight = null;
+            double? nearestUp = null;
+            double? nearestDown = null;
 
-            // Check if the test point is on the boundary before starting calculations
             if (IsPointOnBoundary(geometry, testPoint))
-            {
-                return (null, null); // Exclude measurements for boundary points
-            }
+                return (null, null, null, null);
 
             foreach (var figure in pathGeometry.Figures)
             {
-                Point start = figure.StartPoint;
+                Point previous = figure.StartPoint;
 
                 foreach (var segment in figure.Segments)
                 {
-                    // Check if the segment is a PolylineSegment
                     if (segment is PolyLineSegment polylineSegment)
                     {
-                        int vertex_count = polylineSegment.Points.Count;
-
-                        for (int i = 0; i < polylineSegment.Points.Count; i++)
+                        foreach (Point current in polylineSegment.Points)
                         {
-                            Point segmentStart = polylineSegment.Points[i % vertex_count];
-                            Point segmentEnd = polylineSegment.Points[(i + 1) % vertex_count];
-
-                            // Check if the polyline segment is vertical
-                            if (Math.Abs(segmentStart.X - segmentEnd.X) < 0.1)
-                            {
-                                double x = segmentStart.X;
-
-                                // Ensure Y range contains the test point Y
-                                double minY = Math.Min(segmentStart.Y, segmentEnd.Y);
-                                double maxY = Math.Max(segmentStart.Y, segmentEnd.Y);
-                                if (testPoint.Y >= minY && testPoint.Y <= maxY)
-                                {
-                                    if (x < testPoint.X)
-                                    {
-                                        double dist = testPoint.X - x;
-                                        if (nearestLeft == null || dist < nearestLeft)
-                                            nearestLeft = dist;
-                                    }
-                                    else if (x > testPoint.X)
-                                    {
-                                        double dist = x - testPoint.X;
-                                        if (nearestRight == null || dist < nearestRight)
-                                            nearestRight = dist;
-                                    }
-                                }
-                            }
+                            ProcessSegment(previous, current);
+                            previous = current;
                         }
                     }
-
-                    start = segment is LineSegment line ? line.Point : start;
+                    else if (segment is LineSegment lineSegment)
+                    {
+                        Point current = lineSegment.Point;
+                        ProcessSegment(previous, current);
+                        previous = current;
+                    }
                 }
             }
 
-            return (nearestLeft, nearestRight);
-        }
+            return (nearestLeft, nearestRight, nearestUp, nearestDown);
 
-        public static (double? up, double? down) FindNearestHorizontalEdgeDistances(Geometry geometry, Point testPoint)
-        {
-            var pathGeometry = geometry.GetFlattenedPathGeometry();
-            double? nearestTop = null;
-            double? nearestBottom = null;
-
-            // Check if the test point is on the boundary before starting calculations
-            if (IsPointOnBoundary(geometry, testPoint))
+            void ProcessSegment(Point start, Point end)
             {
-                return (null, null); // Exclude measurements for boundary points
-            }
-
-            foreach (var figure in pathGeometry.Figures)
-            {
-                Point start = figure.StartPoint;
-
-                foreach (var segment in figure.Segments)
+                if (Math.Abs(start.X - end.X) < tolerance)
                 {
-                    // Check if the segment is a PolylineSegment
-                    if (segment is PolyLineSegment polylineSegment)
+                    // Vertical segment
+                    double x = start.X;
+                    double minY = Math.Min(start.Y, end.Y);
+                    double maxY = Math.Max(start.Y, end.Y);
+
+                    if (testPoint.Y >= minY && testPoint.Y <= maxY)
                     {
-                        int vertex_count = polylineSegment.Points.Count;
-
-                        for (int i = 0; i < polylineSegment.Points.Count; i++)
+                        if (x < testPoint.X)
                         {
-                            Point segmentStart = polylineSegment.Points[i % vertex_count];
-                            Point segmentEnd = polylineSegment.Points[(i + 1) % vertex_count];
-
-                            // Check if the polyline segment is horizontal
-                            if (Math.Abs(segmentStart.Y - segmentEnd.Y) < 0.1)
-                            {
-                                double y = segmentStart.Y;
-
-                                // Ensure X range contains the test point X
-                                double minX = Math.Min(segmentStart.X, segmentEnd.X);
-                                double maxX = Math.Max(segmentStart.X, segmentEnd.X);
-                                if (testPoint.X >= minX && testPoint.X <= maxX)
-                                {
-                                    if (y < testPoint.Y)
-                                    {
-                                        double dist = testPoint.Y - y;
-                                        if (nearestTop == null || dist < nearestTop)
-                                            nearestTop = dist;
-                                    }
-                                    else if (y > testPoint.Y)
-                                    {
-                                        double dist = y - testPoint.Y;
-                                        if (nearestBottom == null || dist < nearestBottom)
-                                            nearestBottom = dist;
-                                    }
-                                }
-                            }
+                            double dist = testPoint.X - x;
+                            if (nearestLeft == null || dist < nearestLeft)
+                                nearestLeft = dist;
+                        }
+                        else if (x > testPoint.X)
+                        {
+                            double dist = x - testPoint.X;
+                            if (nearestRight == null || dist < nearestRight)
+                                nearestRight = dist;
                         }
                     }
+                }
+                else if (Math.Abs(start.Y - end.Y) < tolerance)
+                {
+                    // Horizontal segment
+                    double y = start.Y;
+                    double minX = Math.Min(start.X, end.X);
+                    double maxX = Math.Max(start.X, end.X);
 
-                    start = segment is LineSegment line ? line.Point : start;
+                    if (testPoint.X >= minX && testPoint.X <= maxX)
+                    {
+                        if (y < testPoint.Y)
+                        {
+                            double dist = testPoint.Y - y;
+                            if (nearestUp == null || dist < nearestUp)
+                                nearestUp = dist;
+                        }
+                        else if (y > testPoint.Y)
+                        {
+                            double dist = y - testPoint.Y;
+                            if (nearestDown == null || dist < nearestDown)
+                                nearestDown = dist;
+                        }
+                    }
                 }
             }
-
-            return (nearestTop, nearestBottom);
         }
+
 
         // Helper function to check if a point is on any of the boundary segments
         private static bool IsPointOnBoundary(Geometry geometry, Point testPoint)
@@ -363,7 +340,7 @@ namespace Polygonizer
 
             // Additionally check if the point is collinear with the segment (cross product = 0)
             double crossProduct = (testPoint.Y - start.Y) * (end.X - start.X) - (testPoint.X - start.X) * (end.Y - start.Y);
-            return isOnSegment && Math.Abs(crossProduct) < 0.1; // Allow small tolerance for floating-point precision
+            return isOnSegment && Math.Abs(crossProduct) < tolerance; // Allow small tolerance for floating-point precision
         }
 
         /// <summary>
@@ -407,20 +384,6 @@ namespace Polygonizer
                 for (int y = y0; y < y1; y++)
                     for (int x = x0; x < x1; x++)
                         grid[y, x] = true;
-            }
-
-            // UpdateUI filled rectangles
-            foreach (var rect in rectangles)
-            {
-                var fill = new Rectangle
-                {
-                    Width = rect.Width,
-                    Height = rect.Height,
-                    Fill = Brushes.LightBlue
-                };
-                Canvas.SetLeft(fill, rect.X);
-                Canvas.SetTop(fill, rect.Y);
-                MainCanvas.Children.Add(fill);
             }
 
             // Flood fill to find all distinct regions
@@ -731,7 +694,6 @@ namespace Polygonizer
 
             ComputeHeightAndWidthAtPoint(found, testPoint);
             UpdateUI(MainCanvas);
-
         }
     }
 }
