@@ -44,22 +44,23 @@ namespace Polygonizer
         /// <summary>
         /// Define our rectangles
         /// </summary>
-        List<Rect> rectangles = new List<Rect>
+        public static readonly List<Rect> DefaultRectangles = new List<Rect>
         {
             new Rect(10, 180, 100, 100),
 
-            new Rect(120, 120, 200, 150),
-            new Rect(250, 200, 200, 150),
-            new Rect(400, 300, 200, 200),
+            //new Rect(120, 120, 200, 150),
+            //new Rect(250, 200, 200, 150),
+            //new Rect(400, 300, 200, 200),
 
-            new Rect(150, 300, 200, 150),
-            new Rect(410, 480, 100, 100),
+            //new Rect(150, 300, 200, 150),
+            //new Rect(410, 480, 100, 100),
 
 
-            new Rect(500, 100, 100, 80),  // this is the isolated rectangle
-            new Rect(540, 140, 100, 80),  // this is the isolated rectangle
-
+            //new Rect(500, 100, 100, 80),  // this is the isolated rectangle
+            //new Rect(540, 140, 100, 80),  // this is the isolated rectangle
         };
+
+        public List<Rect> rectangles = DefaultRectangles;
 
         public MainWindow()
         {
@@ -71,6 +72,15 @@ namespace Polygonizer
 
                 bFirstLoad = false;
             };
+        }
+
+        /// <summary>
+        /// constructor for taking a list of rectangles and running the algorithm on them
+        /// </summary>
+        /// <param name="rect"></param>
+        public MainWindow(List<Rect> rect) : this()
+        {
+            this.rectangles = rect;
         }
 
         private void UpdateUI(Canvas cnv)
@@ -567,8 +577,83 @@ namespace Polygonizer
                 };
 
                 MainCanvas.Children.Add(path);
+
+                var pathGeometry = combined.GetFlattenedPathGeometry();
+                Point centroid = ComputeCentroidFromGeometry(pathGeometry);
+                Console.WriteLine($"{i}:  area: " + combined.GetArea() + $"     Centroid: {centroid}");
+
+
+
+                var circle = new Ellipse
+                {
+                    Width = 10,
+                    Height = 10,
+                    Fill = Brushes.Black
+                };
+                Canvas.SetLeft(circle, centroid.X - 5);
+                Canvas.SetTop(circle, centroid.Y - 5);
+                MainCanvas.Children.Add(circle);
             }
+            Console.WriteLine("-----------------");
         }
+
+        public static Point ComputeCentroidFromGeometry(Geometry geometry)
+        {
+            var pathGeometry = geometry.GetFlattenedPathGeometry();
+            double signedArea = 0;
+            double centroidX = 0;
+            double centroidY = 0;
+
+            foreach (var figure in pathGeometry.Figures)
+            {
+                List<Point> points = new List<Point>();
+                Point start = figure.StartPoint;
+                points.Add(start);
+
+                foreach (var segment in figure.Segments)
+                {
+                    if (segment is PolyLineSegment poly)
+                    {
+                        points.AddRange(poly.Points);
+                    }
+                    else if (segment is LineSegment line)
+                    {
+                        points.Add(line.Point);
+                    }
+                }
+
+                // Ensure the polygon is closed
+                if (points[0] != points[points.Count - 1])
+                {
+                    points.Add(points[0]);
+                }
+
+                for (int i = 0; i < points.Count - 1; i++)
+                {
+                    double xi = points[i].X;
+                    double yi = points[i].Y;
+                    double xi1 = points[i + 1].X;
+                    double yi1 = points[i + 1].Y;
+
+                    double a = (xi * yi1 - xi1 * yi);
+                    signedArea += a;
+                    centroidX += (xi + xi1) * a;
+                    centroidY += (yi + yi1) * a;
+                }
+            }
+
+            signedArea *= 0.5;
+
+            if (Math.Abs(signedArea) < 1e-6)
+                return new Point(0, 0); // Avoid division by zero
+
+            centroidX /= (6 * signedArea);
+            centroidY /= (6 * signedArea);
+
+            return new Point(centroidX, centroidY);
+        }
+
+
 
         private List<List<Rect>> GroupConnectedRectangles(List<Rect> rectangles)
         {
