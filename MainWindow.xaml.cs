@@ -47,6 +47,9 @@ namespace Polygonizer
         public static readonly List<Rect> DefaultRectangles = new List<Rect>
         {
             new Rect(10, 180, 100, 100),
+            new Rect(80, 250, 100, 100),
+                        new Rect(150, 320, 100, 100),
+
 
             //new Rect(120, 120, 200, 150),
             //new Rect(250, 200, 200, 150),
