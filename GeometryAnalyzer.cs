@@ -8,18 +8,13 @@ namespace Polygonizer
 {
     public class GeometryAnalyzer
     {
-        const bool DEBUG_ON = false;  // switch to display additional debug info 
+        const bool DEBUG_ON = true;  // switch to display additional debug info 
 
         private const double tolerance = 0.1;
-
-        string title_str = "";
 
         public List<(double x, double y)> allCornerPoints = new List<(double x, double y)>();
         public List<(double x, double y)> externalCornerPoints = new List<(double x, double y)>();
         public List<(double x, double y)> internalCornerPoints = new List<(double x, double y)>();
-
-        public double? WidthAtPoint { get; set; } = null;
-        public double? HeightAtPoint { get; set; } = null;
 
         // Define the Islands for our rectagles -- where Islands are independent groupings of overlapping rectangles.
         private List<List<Rect>> Islands = new List<List<Rect>>();
@@ -171,7 +166,6 @@ namespace Polygonizer
                 }
             }
         }
-
 
         // Helper function to check if a point is on any of the boundary segments
         private static bool IsPointOnBoundary(Geometry geometry, Point testPoint)

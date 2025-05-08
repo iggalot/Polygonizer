@@ -9,7 +9,6 @@ namespace Polygonizer
 {
     public partial class MainWindow : Window
     {
-
         private bool bFirstLoad = true;
 
         double testPtX = 0;
@@ -99,7 +98,6 @@ namespace Polygonizer
             }
         }
 
-
         private void DrawOffsetLine(double? offset, double ptX, double ptY, Brush color, string direction)
         {
             if (offset == null) return;
@@ -172,8 +170,6 @@ namespace Polygonizer
                     }
                 }
             }
-
-
         }
         private void DrawCornerPoints(List<(double x, double y)> corners, Rect bounds, Brush color)
         {
