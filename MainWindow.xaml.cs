@@ -102,7 +102,6 @@ namespace Polygonizer
                     Canvas.SetTop(fill, rect.Y);
                     MainCanvas.Children.Add(fill);
                 }
-
                 // Draw the island Boundary
                 DrawUnionOutlineWithColors(rectangles);
 
