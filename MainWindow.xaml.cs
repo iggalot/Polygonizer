@@ -25,6 +25,26 @@ namespace Polygonizer
         /// </summary>
         public static readonly List<Rect> DefaultRectangles = new List<Rect>
         {
+            new Rect(5, 5, 10, 10),
+            new Rect(10, 5, 10, 10),
+            new Rect(15, 5, 10, 10),
+            new Rect(20, 5, 10, 10),
+            new Rect(25, 5, 10, 10),
+            new Rect(30, 5, 10, 10),
+            new Rect(35, 5, 10, 10),
+            new Rect(40, 5, 10, 10),
+            new Rect(45, 5, 10, 10),
+            new Rect(50, 5, 10, 10),
+            new Rect(50, 10, 10, 10),
+            new Rect(50, 15, 10, 10),
+            new Rect(50, 20, 10, 10),
+            new Rect(50, 25, 10, 10),
+            new Rect(50, 30, 10, 10),
+            new Rect(50, 35, 10, 10),
+            new Rect(50, 40, 10, 10),
+            new Rect(50, 45, 10, 10),
+
+
             new Rect(10, 180, 100, 100),
 
             new Rect(120, 120, 200, 150),
